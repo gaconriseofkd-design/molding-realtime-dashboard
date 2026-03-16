@@ -61,6 +61,8 @@ const translations: Translations = {
   invalidFormat: { en: 'Invalid Excel format. Required columns: Mold, Size, Quantity.', vi: 'Sai định dạng Excel. Yêu cầu 3 cột: Mold, Size, Quantity.' },
   selectMachine: { en: 'Select Machine', vi: 'Chọn Máy' },
   selectMold: { en: 'Select Mold', vi: 'Chọn Khuôn' },
+  scanMachineFirst: { en: 'Please scan Machine QR first (Starts with "M")', vi: 'Vui lòng quét mã MÁY trước (Mã máy phải bắt đầu bằng chữ "M")' },
+  invalidMachineCode: { en: 'Invalid Machine code. Must start with "M"', vi: 'Mã Máy không hợp lệ. Phải bắt đầu bằng chữ "M"' },
   scanSuccess: { en: 'Operation successful!', vi: 'Thực hiện thành công!' },
   scanError: { en: 'Operation failed!', vi: 'Thực hiện thất bại!' },
   save: { en: 'Save', vi: 'Lưu' },

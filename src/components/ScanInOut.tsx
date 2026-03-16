@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Camera, Minus, Plus, Cpu, Package, ScanLine, Tag, Loader2, CheckCircle2 } from 'lucide-react';
+import { Camera, Minus, Plus, Cpu, Package, ScanLine, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export function ScanInOut() {
   const { t } = useLanguage();
   const [scanType, setScanType] = useState<'IN' | 'OUT'>('IN');
   const [qty, setQty] = useState(1);
-  const [scanning, setScanning] = useState(true);
+  const [isCameraActive, setIsCameraActive] = useState(false);
   
   const [machines, setMachines] = useState<{id: string, name: string}[]>([]);
   const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
@@ -16,15 +17,15 @@ export function ScanInOut() {
   const [selectedMoldId, setSelectedMoldId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     fetchMeta();
-    
-    // Simulate scanner animation
-    const timer = setInterval(() => {
-      setScanning(prev => !prev);
-    }, 3000);
-    return () => clearInterval(timer);
+    return () => {
+      stopScanner();
+    };
   }, []);
 
   const fetchMeta = async () => {
@@ -34,18 +35,99 @@ export function ScanInOut() {
     if (moData) setMolds(moData);
   };
 
+  const stopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch (err) {
+        console.error('Failed to stop scanner', err);
+      }
+    }
+  };
+
+  const startScanner = async () => {
+    try {
+      setValidationError(null);
+      const html5QrCode = new Html5Qrcode("reader");
+      scannerRef.current = html5QrCode;
+
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+      await html5QrCode.start(
+        { facingMode: "environment" }, 
+        config,
+        (decodedText) => {
+          handleScannedResult(decodedText);
+          // Rung nhẹ khi quét thành công
+          if (navigator.vibrate) navigator.vibrate(100);
+        },
+        () => {} // silent failure of frame processing
+      );
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Error starting camera", err);
+      setValidationError("Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.");
+      setIsCameraActive(false);
+    }
+  };
+
+  const handleScannedResult = (decodedText: string) => {
+    const code = decodedText.trim().toUpperCase();
+    
+    // 1. Kiểm tra nếu chưa có Máy mà lại quét nhầm Khuôn
+    if (!selectedMachineId) {
+      if (!code.startsWith('M')) {
+        setValidationError(t('scanMachineFirst'));
+        return;
+      }
+      // Nếu đúng là mã máy (bắt đầu bằng M)
+      // Kiểm tra xem máy có tồn tại trong hệ thống không
+      const machineExists = machines.some(m => m.id === code);
+      if (machineExists) {
+        setSelectedMachineId(code);
+        setValidationError(null);
+      } else {
+        setValidationError(`Máy ${code} không tồn tại trong hệ thống!`);
+      }
+    } else {
+      // 2. Đã có máy, giờ quét Khuôn
+      if (code.startsWith('M')) {
+        // Nếu quét lại mã máy khác thì cập nhật máy
+        const machineExists = machines.some(m => m.id === code);
+        if (machineExists) {
+          setSelectedMachineId(code);
+          setSelectedMoldId('');
+          setValidationError(null);
+        }
+      } else {
+        // Quét khuôn
+        const moldExists = molds.some(m => m.id === code);
+        if (moldExists) {
+          setSelectedMoldId(code);
+          setValidationError(null);
+        } else {
+          setValidationError(`Khuôn ${code} không tồn tại trong danh mục!`);
+        }
+      }
+    }
+  };
+
   const selectedMold = molds.find(m => m.id === selectedMoldId);
 
   const handleSubmit = async () => {
-    if (!selectedMachineId || !selectedMoldId) {
-      alert('Vui lòng chọn Máy và Khuôn');
+    if (!selectedMachineId) {
+      setValidationError(t('scanMachineFirst'));
+      return;
+    }
+    if (!selectedMoldId) {
+      alert(t('selectMold'));
       return;
     }
 
     try {
       setIsSubmitting(true);
 
-      // Get current quantity on machine
       const { data: existing } = await supabase
         .from('running_molds')
         .select('uuid, quantity')
@@ -65,7 +147,6 @@ export function ScanInOut() {
 
         if (error) throw error;
       } else {
-        // OUT
         if (!existing) {
           alert('Khuôn này không có trên máy!');
           return;
@@ -100,50 +181,82 @@ export function ScanInOut() {
   return (
     <div className="max-w-md mx-auto h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-20 sm:pb-0">
       
-      {/* Scanner Viewport Placeholder */}
-      <div className="relative w-full aspect-video sm:aspect-square bg-slate-800 rounded-3xl overflow-hidden border-4 border-slate-700/50 shadow-2xl flex items-center justify-center">
-        {scanning ? (
-          <div className="absolute inset-0 bg-black">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiLz4KPC9zdmc+')] opacity-50"></div>
-            
-            <motion.div 
-              animate={{ y: ['0%', '100%', '0%'] }}
-              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-              className="absolute left-0 right-0 h-1 bg-green-500 shadow-[0_0_20px_rgba(34,197,94,1)] z-10"
-              style={{ top: '0%' }}
-            />
-            
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4">
-              <ScanLine className="w-16 h-16 opacity-50" />
-              <p className="font-medium animate-pulse">{t('barcodeScannerPlaceholder')}</p>
-            </div>
+      {/* Scanner Viewport */}
+      <div className="relative w-full aspect-video sm:aspect-square bg-black rounded-3xl overflow-hidden border-4 border-slate-700/50 shadow-2xl flex items-center justify-center">
+        
+        {/* HTML5 QR Code Container */}
+        <div id="reader" className="w-full h-full object-cover"></div>
 
-            {/* Corner Markers */}
-            <div className="absolute top-8 left-8 w-12 h-12 border-t-4 border-l-4 border-slate-500 rounded-tl-xl"></div>
-            <div className="absolute top-8 right-8 w-12 h-12 border-t-4 border-r-4 border-slate-500 rounded-tr-xl"></div>
-            <div className="absolute bottom-8 left-8 w-12 h-12 border-b-4 border-l-4 border-slate-500 rounded-bl-xl"></div>
-            <div className="absolute bottom-8 right-8 w-12 h-12 border-b-4 border-r-4 border-slate-500 rounded-br-xl"></div>
-          </div>
-        ) : (
-          <div className="text-center text-slate-500">
-            <Camera className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p>Camera Disabled</p>
+        {!isCameraActive && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 text-slate-400 gap-4 z-10">
+            <Camera className="w-16 h-16 opacity-30" />
+            <button 
+              onClick={startScanner}
+              className="bg-indigo-500 hover:bg-indigo-400 text-white px-6 py-2 rounded-xl font-bold shadow-lg transition-transform active:scale-95"
+            >
+              Mở Camera Quét
+            </button>
           </div>
         )}
+
+        {/* Laser Animation Overlay */}
+        {isCameraActive && (
+          <>
+            <motion.div 
+               animate={{ y: ['0%', '98%', '0%'] }}
+               transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+               className="absolute left-0 right-0 h-1 bg-green-500 shadow-[0_0_20px_rgba(34,197,94,1)] z-10 pointer-events-none"
+               style={{ top: '0%' }}
+            />
+            <button 
+              onClick={async () => {
+                await stopScanner();
+                setIsCameraActive(false);
+              }}
+              className="absolute top-4 right-4 z-20 bg-slate-900/50 p-2 rounded-full text-white hover:bg-rose-500 transition-colors"
+            >
+              <StopCircle className="w-6 h-6" />
+            </button>
+          </>
+        )}
+
+        {/* Validation Overlay */}
+        <AnimatePresence>
+          {validationError && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="absolute bottom-6 left-6 right-6 bg-rose-500 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 z-30 border border-rose-400"
+            >
+              <AlertCircle className="w-6 h-6 flex-shrink-0" />
+              <p className="text-sm font-bold leading-tight">{validationError}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Scanned Data Inputs */}
       <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl p-5 border border-slate-700/50 shadow-lg space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-indigo-500/20 p-3 rounded-xl border border-indigo-500/10">
-            <Cpu className="w-6 h-6 text-indigo-400" />
+        {/* Machine Selection */}
+        <div className={`flex items-center gap-4 transition-all duration-300 ${!selectedMachineId ? 'ring-2 ring-indigo-500/50 p-1 rounded-xl bg-indigo-500/5' : ''}`}>
+          <div className={`p-3 rounded-xl border transition-colors ${selectedMachineId ? 'bg-indigo-500/20 border-indigo-500/10' : 'bg-slate-700/50 border-slate-600'}`}>
+            <Cpu className={`w-6 h-6 ${selectedMachineId ? 'text-indigo-400' : 'text-slate-500'}`} />
           </div>
-          <div className="flex-1">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{t('selectedMachine')}</p>
+          <div className="flex-1 text-left">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('selectedMachine')}</p>
             <select 
               value={selectedMachineId}
-              onChange={(e) => setSelectedMachineId(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer"
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val && !val.startsWith('M')) {
+                  setValidationError(t('invalidMachineCode'));
+                  return;
+                }
+                setSelectedMachineId(val);
+                setValidationError(null);
+              }}
+              className={`w-full bg-slate-900/50 border rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer transition-all ${!selectedMachineId ? 'border-indigo-500/50 animate-pulse' : 'border-slate-600'}`}
             >
               <option value="">-- {t('selectMachine')} --</option>
               {machines.map(m => <option key={m.id} value={m.id}>{m.id} | {m.name}</option>)}
@@ -153,12 +266,13 @@ export function ScanInOut() {
 
         <div className="h-px w-full bg-slate-700/50"></div>
 
-        <div className="flex items-center gap-4">
+        {/* Mold Selection - Disabled if no machine */}
+        <div className={`flex items-center gap-4 transition-opacity duration-300 ${!selectedMachineId ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
           <div className="bg-emerald-500/20 p-3 rounded-xl border border-emerald-500/10 flex-shrink-0">
             <Package className="w-6 h-6 text-emerald-400" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{t('scannedMold')}</p>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('scannedMold')}</p>
             <div className="flex items-center gap-2">
               <select 
                 value={selectedMoldId}
@@ -180,7 +294,7 @@ export function ScanInOut() {
       </div>
 
       {/* Scan Actions & Quantity */}
-      <div className="space-y-4">
+      <div className={`space-y-4 transition-opacity ${!selectedMachineId || !selectedMoldId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
         <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => setScanType('IN')}
@@ -227,11 +341,13 @@ export function ScanInOut() {
 
       <button 
         onClick={handleSubmit}
-        disabled={isSubmitting || showSuccess}
+        disabled={isSubmitting || showSuccess || !selectedMachineId || !selectedMoldId}
         className={`w-full relative mt-auto py-6 rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden ${
           showSuccess 
             ? 'bg-emerald-500 text-white' 
-            : 'bg-slate-100 hover:bg-white text-slate-900'
+            : !selectedMachineId || !selectedMoldId
+              ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
+              : 'bg-slate-100 hover:bg-white text-slate-900'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -251,6 +367,16 @@ export function ScanInOut() {
           )}
         </AnimatePresence>
       </button>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        #reader video {
+          object-fit: cover !important;
+          border-radius: 1.5rem;
+        }
+        #reader {
+          border: none !important;
+        }
+      `}} />
 
     </div>
   );
