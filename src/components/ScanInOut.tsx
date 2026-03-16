@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle } from 'lucide-react';
+import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -36,10 +36,12 @@ export function ScanInOut() {
 
   useEffect(() => {
     fetchMeta();
+    // Tự động mở camera khi vào trang
+    startScanner();
     return () => {
       stopScanner();
     };
-  }, []);
+  }, [machines]); // Re-run if machines list updates to ensure scanner handles valid checks
 
   const fetchMeta = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name').order('id');
@@ -261,22 +263,32 @@ export function ScanInOut() {
           </div>
           <div className="flex-1 text-left">
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('selectedMachine')}</p>
-            <select 
-              value={selectedMachineId}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val && !val.startsWith('M')) {
-                  setValidationError(t('invalidMachineCode'));
-                  return;
-                }
-                setSelectedMachineId(val);
-                setValidationError(null);
-              }}
-              className={`w-full bg-slate-900/50 border rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer transition-all ${!selectedMachineId ? 'border-indigo-500/50 animate-pulse' : 'border-slate-600'}`}
-            >
-              <option value="">-- {t('selectMachine')} --</option>
-              {machines.map(m => <option key={m.id} value={m.id}>{m.id} | {m.name}</option>)}
-            </select>
+            <div className="flex gap-2">
+              <select 
+                value={selectedMachineId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val && !val.startsWith('M')) {
+                    setValidationError(t('invalidMachineCode'));
+                    return;
+                  }
+                  setSelectedMachineId(val);
+                  setValidationError(null);
+                }}
+                className={`flex-1 bg-slate-900/50 border rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer transition-all ${!selectedMachineId ? 'border-indigo-500/50 animate-pulse' : 'border-slate-600'}`}
+              >
+                <option value="">-- {t('selectMachine')} --</option>
+                {machines.map(m => <option key={m.id} value={m.id}>{m.id} | {m.name}</option>)}
+              </select>
+              {selectedMachineId && (
+                <button 
+                  onClick={() => { setSelectedMachineId(''); setSelectedMoldId(''); }}
+                  className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -298,6 +310,14 @@ export function ScanInOut() {
                 <option value="">-- {t('selectMold')} --</option>
                 {molds.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
               </select>
+              {selectedMoldId && (
+                <button 
+                  onClick={() => setSelectedMoldId('')}
+                  className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                </button>
+              )}
               {selectedMold && (
                 <div className="flex items-center gap-1.5 bg-indigo-500/20 px-3 py-2 rounded-xl border border-indigo-500/20 whitespace-nowrap">
                   <Tag className="w-4 h-4 text-indigo-400" />
