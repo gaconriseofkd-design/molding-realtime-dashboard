@@ -1,0 +1,147 @@
+import type { Machine, MoldMaster } from '../types';
+
+export const mockDashboardStats = {
+  totalCapacityUtilization: 85,
+  totalMachines: 50,
+  totalMoldsRunning: 850,
+  totalMoldsCapacity: 1000,
+};
+
+export const mockMachines: Machine[] = [
+  {
+    id: 'M-01',
+    name: 'Injection Machine 1',
+    moldsRunning: 30,
+    maxMolds: 32,
+    loadPercentage: 93.75,
+    status: 'optimal',
+    molds: [
+      { id: '1', name: 'OV_0224', size: '7Y', qty: 10 },
+      { id: '2', name: 'OV_0112', size: '8M', qty: 8 },
+      { id: '3', name: 'OV_0331', size: '6W', qty: 12 },
+    ],
+  },
+  {
+    id: 'M-02',
+    name: 'Injection Machine 2',
+    moldsRunning: 24,
+    maxMolds: 32,
+    loadPercentage: 75,
+    status: 'warning',
+    molds: [
+      { id: '4', name: 'OV_0224', size: '9M', qty: 12 },
+      { id: '5', name: 'OV_0144', size: '7Y', qty: 12 },
+    ],
+  },
+  {
+    id: 'M-03',
+    name: 'Injection Machine 3',
+    moldsRunning: 14,
+    maxMolds: 32,
+    loadPercentage: 43.75,
+    status: 'underutilized',
+    molds: [
+      { id: '6', name: 'OV_0556', size: '10M', qty: 8 },
+      { id: '7', name: 'OV_0556', size: '11M', qty: 6 },
+    ],
+  },
+  {
+    id: 'M-04',
+    name: 'Injection Machine 4',
+    moldsRunning: 31,
+    maxMolds: 32,
+    loadPercentage: 96.87,
+    status: 'optimal',
+    molds: [
+      { id: '8', name: 'OV_0992', size: '8Y', qty: 15 },
+      { id: '9', name: 'OV_0993', size: '9Y', qty: 16 },
+    ],
+  },
+  {
+    id: 'M-05',
+    name: 'Injection Machine 5',
+    moldsRunning: 20,
+    maxMolds: 30,
+    loadPercentage: 66.67,
+    status: 'warning',
+    molds: [
+      { id: '10', name: 'OV_0111', size: '6W', qty: 10 },
+      { id: '11', name: 'OV_0112', size: '7W', qty: 10 },
+    ],
+  },
+  {
+    id: 'M-06',
+    name: 'Injection Machine 6',
+    moldsRunning: 28,
+    maxMolds: 30,
+    loadPercentage: 93.33,
+    status: 'optimal',
+    molds: [
+      { id: '12', name: 'OV_0777', size: '10M', qty: 14 },
+      { id: '13', name: 'OV_0778', size: '11M', qty: 14 },
+    ],
+  },
+  {
+    id: 'M-07',
+    name: 'Injection Machine 7',
+    moldsRunning: 12,
+    maxMolds: 28,
+    loadPercentage: 42.85,
+    status: 'underutilized',
+    molds: [
+      { id: '14', name: 'OV_0444', size: '8Y', qty: 12 },
+    ],
+  },
+  {
+    id: 'M-08',
+    name: 'Injection Machine 8',
+    moldsRunning: 26,
+    maxMolds: 32,
+    loadPercentage: 81.25,
+    status: 'optimal',
+    molds: [
+      { id: '15', name: 'OV_0123', size: '7M', qty: 10 },
+      { id: '16', name: 'OV_0124', size: '8M', qty: 8 },
+      { id: '17', name: 'OV_0125', size: '9M', qty: 8 },
+    ],
+  },
+  {
+    id: 'M-09',
+    name: 'Injection Machine 9 (Heavy Load)',
+    moldsRunning: 14,
+    maxMolds: 14,
+    loadPercentage: 100,
+    status: 'optimal',
+    molds: [
+      { id: '18', name: 'OV_0201', size: '6M', qty: 12 },
+      { id: '19', name: 'OV_0202', size: '6.5M', qty: 10 },
+      { id: '20', name: 'OV_0203', size: '7M', qty: 15 },
+      { id: '21', name: 'OV_0204', size: '7.5M', qty: 12 },
+      { id: '22', name: 'OV_0205', size: '8M', qty: 18 },
+      { id: '23', name: 'OV_0206', size: '8.5M', qty: 10 },
+      { id: '24', name: 'OV_0207', size: '9M', qty: 25 },
+      { id: '25', name: 'OV_0208', size: '9.5M', qty: 10 },
+      { id: '26', name: 'OV_0209', size: '10M', qty: 8 },
+      { id: '27', name: 'OV_0210', size: '10.5M', qty: 5 },
+      { id: '28', name: 'OV_0211', size: '11M', qty: 10 },
+      { id: '29', name: 'OV_0212', size: '11.5M', qty: 8 },
+      { id: '30', name: 'OV_0213', size: '12M', qty: 10 },
+      { id: '31', name: 'OV_0214', size: '13M', qty: 4 },
+    ],
+  },
+];
+
+export const mockMoldDatabase: MoldMaster[] = [
+  { id: 'OV_0224', size: '7Y', totalOwned: 50, currentlyRunning: 22, status: 'active' },
+  { id: 'OV_0112', size: '8M', totalOwned: 40, currentlyRunning: 8, status: 'active' },
+  { id: 'OV_0331', size: '6W', totalOwned: 30, currentlyRunning: 12, status: 'active' },
+  { id: 'OV_0144', size: '7Y', totalOwned: 60, currentlyRunning: 12, status: 'active' },
+  { id: 'OV_0556', size: '10M', totalOwned: 20, currentlyRunning: 8, status: 'active' },
+  { id: 'OV_0556', size: '11M', totalOwned: 15, currentlyRunning: 6, status: 'maintenance' },
+  { id: 'OV_0992', size: '8Y', totalOwned: 45, currentlyRunning: 15, status: 'active' },
+  { id: 'OV_0993', size: '9Y', totalOwned: 50, currentlyRunning: 16, status: 'active' },
+  { id: 'OV_0201', size: '6M', totalOwned: 20, currentlyRunning: 12, status: 'active' },
+  { id: 'OV_0202', size: '6.5M', totalOwned: 20, currentlyRunning: 10, status: 'active' },
+  { id: 'OV_0203', size: '7M', totalOwned: 30, currentlyRunning: 15, status: 'active' },
+  { id: 'OV_0204', size: '7.5M', totalOwned: 25, currentlyRunning: 12, status: 'active' },
+];

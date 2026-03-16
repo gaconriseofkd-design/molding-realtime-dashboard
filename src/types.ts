@@ -1,0 +1,31 @@
+export interface Mold {
+  id: string;
+  name: string;
+  size: string;
+  qty: number;
+}
+
+export interface Machine {
+  id: string;
+  name: string;
+  moldsRunning: number;
+  maxMolds: number;
+  loadPercentage: number;
+  status: 'optimal' | 'warning' | 'underutilized';
+  molds: Mold[];
+}
+
+export interface MoldMaster {
+  id: string;
+  size: string;
+  totalOwned: number;
+  currentlyRunning: number;
+  status: 'active' | 'maintenance' | 'retired';
+}
+
+export interface DashboardStats {
+  totalCapacityUtilization: number;
+  totalMachines: number;
+  totalMoldsRunning: number;
+  totalMoldsCapacity: number;
+}
