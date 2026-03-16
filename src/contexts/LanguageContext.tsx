@@ -53,6 +53,12 @@ const translations: Translations = {
   totalOwnedQty: { en: 'Total Owned Qty', vi: 'Số Lượng Sở Hữu' },
   currentlyRunningQty: { en: 'Currently Running Qty', vi: 'SL Đang Chạy' },
   addNewMold: { en: 'Add New Mold', vi: 'Thêm Khuôn Mới' },
+  importExcel: { en: 'Import Excel', vi: 'Nhập từ Excel' },
+  downloadTemplate: { en: 'Download Template', vi: 'Tải Template Excel' },
+  uploading: { en: 'Uploading...', vi: 'Đang tải lên...' },
+  uploadSuccess: { en: 'Upload successful!', vi: 'Tải lên thành công!' },
+  uploadFailed: { en: 'Upload failed!', vi: 'Tải lỗi! Vui lòng kiểm tra lại.' },
+  invalidFormat: { en: 'Invalid Excel format. Required columns: Mold, Size, Quantity.', vi: 'Sai định dạng Excel. Yêu cầu 3 cột: Mold, Size, Quantity.' },
   save: { en: 'Save', vi: 'Lưu' },
   cancel: { en: 'Cancel', vi: 'Hủy' },
   initialQuantity: { en: 'Initial Quantity', vi: 'Số lượng ban đầu' }
