@@ -15,6 +15,19 @@ export function ScanInOut() {
   const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
+  
+  // Refs to allow camera callback to access latest state without stale closures
+  const selectedMachineRef = useRef('');
+  const selectedMoldRef = useRef('');
+
+  useEffect(() => {
+    selectedMachineRef.current = selectedMachineId;
+  }, [selectedMachineId]);
+
+  useEffect(() => {
+    selectedMoldRef.current = selectedMoldId;
+  }, [selectedMoldId]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -52,7 +65,6 @@ export function ScanInOut() {
       const html5QrCode = new Html5Qrcode("reader");
       scannerRef.current = html5QrCode;
 
-      // Tối ưu cho công nghiệp: Quét nhanh (20fps), khung quét rộng 80% màn hình
       const config = { 
         fps: 20, 
         qrbox: (viewWidth: number, viewHeight: number) => {
@@ -67,7 +79,6 @@ export function ScanInOut() {
         config,
         (decodedText) => {
           handleScannedResult(decodedText);
-          // Rung mạnh hơn để công nhân biết đã nhận mã
           if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         },
         () => {} 
@@ -83,25 +94,23 @@ export function ScanInOut() {
   const handleScannedResult = (decodedText: string) => {
     const code = decodedText.trim().toUpperCase();
     
-    // 1. Kiểm tra nếu chưa có Máy mà lại quét nhầm Khuôn
-    if (!selectedMachineId) {
+    // Sử dụng Ref để lấy giá trị thực tế ngay lúc này
+    const currentMachine = selectedMachineRef.current;
+
+    if (!currentMachine) {
       if (!code.startsWith('M')) {
         setValidationError(t('scanMachineFirst'));
         return;
       }
-      // Nếu đúng là mã máy (bắt đầu bằng M)
-      // Kiểm tra xem máy có tồn tại trong hệ thống không
       const machineExists = machines.some(m => m.id === code);
       if (machineExists) {
         setSelectedMachineId(code);
         setValidationError(null);
       } else {
-        setValidationError(`Máy ${code} không tồn tại trong hệ thống!`);
+        setValidationError(`Máy ${code} không tồn tại!`);
       }
     } else {
-      // 2. Đã có máy, giờ quét Khuôn
       if (code.startsWith('M')) {
-        // Nếu quét lại mã máy khác thì cập nhật máy
         const machineExists = machines.some(m => m.id === code);
         if (machineExists) {
           setSelectedMachineId(code);
@@ -109,13 +118,12 @@ export function ScanInOut() {
           setValidationError(null);
         }
       } else {
-        // Quét khuôn
         const moldExists = molds.some(m => m.id === code);
         if (moldExists) {
           setSelectedMoldId(code);
           setValidationError(null);
         } else {
-          setValidationError(`Khuôn ${code} không tồn tại trong danh mục!`);
+          setValidationError(`Khuôn ${code} không tồn tại!`);
         }
       }
     }
