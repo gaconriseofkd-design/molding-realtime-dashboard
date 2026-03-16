@@ -89,7 +89,7 @@ export function MoldDatabase() {
       }
 
       // Upsert to Supabase
-      const { error, data: upsertData } = await supabase
+      const { error } = await supabase
         .from('mold_master')
         .upsert(formattedData, { onConflict: 'id' })
         .select(); // selecting returns the inserted rows and helps surface deeper db errors
