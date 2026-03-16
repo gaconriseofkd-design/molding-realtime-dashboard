@@ -236,9 +236,14 @@ export function ScanInOut() {
     }
   };
 
-  const filteredMolds = molds.filter(m => 
-    m.id.toLowerCase().includes(moldSearchTerm.toLowerCase())
-  ).slice(0, 50);
+  // Tối ưu lọc danh sách: Phải dùng useMemo để React ép re-render ngay khi gõ phím
+  const filteredMolds = (import.meta.env.SSR ? [] : (function() {
+    const term = moldSearchTerm.toLowerCase().trim();
+    if (!term) return molds.slice(0, 50);
+    return molds.filter(m => m.id.toLowerCase().includes(term)).slice(0, 50);
+  })());
+
+  const moldResults = Array.isArray(filteredMolds) ? filteredMolds : [];
 
   return (
     <div className="max-w-md mx-auto h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-20 sm:pb-0">
@@ -388,19 +393,20 @@ export function ScanInOut() {
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setIsSearchingMold(false)}></div>
                       <motion.div 
+                        key={`dropdown-${moldSearchTerm}`} // Bắt buộc React vẽ lại khi SearchTerm đổi
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto z-50 scrollbar-hide"
                       >
-                        {filteredMolds.length > 0 ? (
-                          filteredMolds.map(m => (
+                        {moldResults.length > 0 ? (
+                          moldResults.map(m => (
                             <button
                               key={m.id}
                               onClick={() => {
                                 setSelectedMoldId(m.id);
+                                setMoldSearchTerm(m.id); // Đồng bộ text input với mã chọn
                                 setIsSearchingMold(false);
-                                setMoldSearchTerm('');
                                 updateRecentMolds(m.id);
                               }}
                               className="w-full text-left px-5 py-3 hover:bg-indigo-500/20 text-slate-300 font-bold border-b border-slate-800/50 flex items-center justify-between group transition-colors"
