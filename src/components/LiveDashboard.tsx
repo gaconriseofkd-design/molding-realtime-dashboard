@@ -1,10 +1,11 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2 } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats } from '../types';
+import { utils, writeFile } from 'xlsx';
 
 export function LiveDashboard() {
   const { t } = useLanguage();
@@ -101,6 +102,43 @@ export function LiveDashboard() {
     }
   };
 
+  const handleExportExcel = () => {
+    const exportData = machines.flatMap(m => {
+      if (m.molds.length === 0) {
+        return [{
+          Machine: m.id,
+          Name: m.name,
+          Status: m.status,
+          Load: `${m.loadPercentage}%`,
+          Mold: 'None',
+          Size: '-',
+          Quantity: 0
+        }];
+      }
+      return m.molds.map(mold => ({
+        Machine: m.id,
+        Name: m.name,
+        Status: m.status,
+        Load: `${m.loadPercentage}%`,
+        Mold: mold.id,
+        Size: mold.size,
+        Quantity: mold.qty
+      }));
+    });
+
+    const ws = utils.json_to_sheet(exportData);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Live Status");
+    
+    // Auto-size columns
+    const colWidths = [
+      { wch: 10 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }
+    ];
+    ws['!cols'] = colWidths;
+
+    writeFile(wb, `Molding_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const filteredMachines = machines
     .filter(machine => {
       const matchesSearch = machine.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -129,10 +167,19 @@ export function LiveDashboard() {
 
         <div className="flex flex-col gap-6 mb-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              <span className="w-2 h-8 bg-indigo-500 rounded-full block"></span>
-              {t('liveMachineStatus')}
-            </h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <span className="w-2 h-8 bg-indigo-500 rounded-full block"></span>
+                {t('liveMachineStatus')}
+              </h2>
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-emerald-500/5"
+              >
+                <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                {t('exportExcel')}
+              </button>
+            </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm font-medium">
               <div className="flex items-center gap-2 text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
                 <span className="w-3 h-3 rounded-full bg-emerald-500 block shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>

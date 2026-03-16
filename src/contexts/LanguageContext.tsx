@@ -67,7 +67,8 @@ const translations: Translations = {
   scanError: { en: 'Operation failed!', vi: 'Thực hiện thất bại!' },
   save: { en: 'Save', vi: 'Lưu' },
   cancel: { en: 'Cancel', vi: 'Hủy' },
-  initialQuantity: { en: 'Initial Quantity', vi: 'Số lượng ban đầu' }
+  initialQuantity: { en: 'Initial Quantity', vi: 'Số lượng ban đầu' },
+  exportExcel: { en: 'Export Excel', vi: 'Xuất Excel' }
 };
 
 interface LanguageContextType {
