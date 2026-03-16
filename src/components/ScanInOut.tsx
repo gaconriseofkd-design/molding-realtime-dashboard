@@ -40,16 +40,19 @@ export function ScanInOut() {
 
   useEffect(() => {
     fetchMeta();
-    // Load recent molds from localStorage
     const savedRecents = localStorage.getItem('recent_molds');
     if (savedRecents) setRecentMolds(JSON.parse(savedRecents));
 
-    // Tự động mở camera khi vào trang
-    startScanner();
+    // Khởi tạo camera lần đầu
+    const timeoutId = setTimeout(() => {
+      startScanner();
+    }, 500); // Đợi DOM ổn định một chút
+
     return () => {
+      clearTimeout(timeoutId);
       stopScanner();
     };
-  }, [machines]);
+  }, []);
 
   const fetchMeta = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name').order('id');
@@ -59,10 +62,14 @@ export function ScanInOut() {
   };
 
   const stopScanner = async () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
+    if (scannerRef.current) {
       try {
-        await scannerRef.current.stop();
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
         scannerRef.current.clear();
+        scannerRef.current = null;
+        setIsCameraActive(false);
       } catch (err) {
         console.error('Failed to stop scanner', err);
       }
@@ -70,6 +77,8 @@ export function ScanInOut() {
   };
 
   const startScanner = async () => {
+    if (scannerRef.current?.isScanning) return; // Tránh bật chồng máy ảnh
+
     try {
       setValidationError(null);
       const html5QrCode = new Html5Qrcode("reader");
@@ -96,7 +105,12 @@ export function ScanInOut() {
       setIsCameraActive(true);
     } catch (err: any) {
       console.error("Error starting camera", err);
-      setValidationError("Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.");
+      // Nếu lỗi là do element chưa sẵn sàng, thử lại sau 1s
+      if (err.includes?.("reader")) {
+         setTimeout(startScanner, 1000);
+      } else {
+        setValidationError("Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.");
+      }
       setIsCameraActive(false);
     }
   };
