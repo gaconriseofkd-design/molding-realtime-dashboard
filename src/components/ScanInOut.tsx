@@ -23,6 +23,8 @@ export function ScanInOut() {
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
   const selectedMoldRef = useRef('');
+  const machinesRef = useRef<{id: string, name: string}[]>([]);
+  const moldsRef = useRef<{id: string, size: string}[]>([]);
 
   useEffect(() => {
     selectedMachineRef.current = selectedMachineId;
@@ -31,6 +33,14 @@ export function ScanInOut() {
   useEffect(() => {
     selectedMoldRef.current = selectedMoldId;
   }, [selectedMoldId]);
+
+  useEffect(() => {
+    machinesRef.current = machines;
+  }, [machines]);
+
+  useEffect(() => {
+    moldsRef.current = molds;
+  }, [molds]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -46,7 +56,7 @@ export function ScanInOut() {
     // Khởi tạo camera lần đầu
     const timeoutId = setTimeout(() => {
       startScanner();
-    }, 500); // Đợi DOM ổn định một chút
+    }, 1000); // Tăng lên 1s để chắc chắn dữ liệu Meta đã về kịp
 
     return () => {
       clearTimeout(timeoutId);
@@ -57,8 +67,14 @@ export function ScanInOut() {
   const fetchMeta = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name').order('id');
     const { data: moData } = await supabase.from('mold_master').select('id, size').order('id');
-    if (mData) setMachines(mData);
-    if (moData) setMolds(moData);
+    if (mData) {
+      setMachines(mData);
+      machinesRef.current = mData;
+    }
+    if (moData) {
+      setMolds(moData);
+      moldsRef.current = moData;
+    }
   };
 
   const stopScanner = async () => {
@@ -126,14 +142,18 @@ export function ScanInOut() {
 
   const handleScannedResult = (decodedText: string) => {
     const code = decodedText.trim().toUpperCase();
+    
+    // Sử dụng Ref để lấy giá trị thực tế ngay lúc này
     const currentMachine = selectedMachineRef.current;
+    const allMachines = machinesRef.current;
+    const allMolds = moldsRef.current;
 
     if (!currentMachine) {
       if (!code.startsWith('M')) {
         setValidationError(t('scanMachineFirst'));
         return;
       }
-      const machineExists = machines.some(m => m.id === code);
+      const machineExists = allMachines.some(m => m.id === code);
       if (machineExists) {
         setSelectedMachineId(code);
         setValidationError(null);
@@ -142,14 +162,14 @@ export function ScanInOut() {
       }
     } else {
       if (code.startsWith('M')) {
-        const machineExists = machines.some(m => m.id === code);
+        const machineExists = allMachines.some(m => m.id === code);
         if (machineExists) {
           setSelectedMachineId(code);
           setSelectedMoldId('');
           setValidationError(null);
         }
       } else {
-        const moldExists = molds.some(m => m.id === code);
+        const moldExists = allMolds.some(m => m.id === code);
         if (moldExists) {
           setSelectedMoldId(code);
           setValidationError(null);
