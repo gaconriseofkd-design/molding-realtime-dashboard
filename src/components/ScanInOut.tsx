@@ -52,17 +52,25 @@ export function ScanInOut() {
       const html5QrCode = new Html5Qrcode("reader");
       scannerRef.current = html5QrCode;
 
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      // Tối ưu cho công nghiệp: Quét nhanh (20fps), khung quét rộng 80% màn hình
+      const config = { 
+        fps: 20, 
+        qrbox: (viewWidth: number, viewHeight: number) => {
+          let size = Math.min(viewWidth, viewHeight) * 0.8;
+          return { width: size, height: size };
+        },
+        aspectRatio: 1.0
+      };
 
       await html5QrCode.start(
         { facingMode: "environment" }, 
         config,
         (decodedText) => {
           handleScannedResult(decodedText);
-          // Rung nhẹ khi quét thành công
-          if (navigator.vibrate) navigator.vibrate(100);
+          // Rung mạnh hơn để công nhân biết đã nhận mã
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         },
-        () => {} // silent failure of frame processing
+        () => {} 
       );
       setIsCameraActive(true);
     } catch (err: any) {
