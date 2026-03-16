@@ -89,17 +89,21 @@ export function MoldDatabase() {
       }
 
       // Upsert to Supabase
-      const { error } = await supabase
+      const { error, data: upsertData } = await supabase
         .from('mold_master')
-        .upsert(formattedData, { onConflict: 'id' });
+        .upsert(formattedData, { onConflict: 'id' })
+        .select(); // selecting returns the inserted rows and helps surface deeper db errors
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       
       alert(t('uploadSuccess'));
       fetchMolds();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload Error:', error);
-      alert(t('uploadFailed'));
+      // Hiển thị trực tiếp mã lỗi của Supabase ra màn hình để báo cáo
+      alert(t('uploadFailed') + '\n\nChi tiết lỗi Supabase: ' + (error?.message || error?.details || JSON.stringify(error)));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
