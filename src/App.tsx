@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useLanguage } from './contexts/LanguageContext';
 import { Layout } from './components/Layout';
 import { LiveDashboard } from './components/LiveDashboard';
 import { ScanInOut } from './components/ScanInOut';
