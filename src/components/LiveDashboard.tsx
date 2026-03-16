@@ -1,29 +1,132 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
-import { mockDashboardStats, mockMachines } from '../data/mockData';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown } from 'lucide-react';
-import { useState } from 'react';
+import { Search, Filter, ArrowUpDown, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../utils/supabaseClient';
+import type { Machine, DashboardStats } from '../types';
 
 export function LiveDashboard() {
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-
-  const filteredMachines = mockMachines.filter(machine => {
-    const matchesSearch = machine.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          machine.molds.some(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    if (statusFilter === 'all') return matchesSearch;
-    if (statusFilter === 'empty') return matchesSearch && machine.molds.length === 0;
-    return matchesSearch && machine.status === statusFilter;
+  const [sortBy, setSortBy] = useState('none');
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalMoldsRunning: 0,
+    totalMoldsCapacity: 0,
+    totalMachines: 0,
+    totalCapacityUtilization: 0
   });
+
+  useEffect(() => {
+    fetchData();
+
+    // Subscribe to real-time changes
+    const runningMoldsSubscription = supabase
+      .channel('public:running_molds')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'running_molds' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(runningMoldsSubscription);
+    };
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // 1. Fetch all machines
+      const { data: machinesData, error: mError } = await supabase
+        .from('machines')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (mError) throw mError;
+
+      // 2. Fetch all running molds
+      const { data: runningData, error: rError } = await supabase
+        .from('running_molds')
+        .select('*');
+
+      if (rError) throw rError;
+
+      // 3. Transform and Compute
+      const transformedMachines: Machine[] = machinesData.map(m => {
+        const moldsRunningOnThisMachine = (runningData || [])
+          .filter(r => r.machine_id === m.id)
+          .map(r => ({
+            id: r.mold_id,
+            name: r.mold_id,
+            size: r.mold_size,
+            qty: r.quantity
+          }));
+
+        const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
+        const loadPercentage = Math.round((moldsCount / m.max_molds) * 100) || 0;
+
+        return {
+          id: m.id,
+          name: m.name,
+          status: m.status,
+          loadPercentage,
+          maxMolds: m.max_molds,
+          moldsRunning: moldsCount,
+          molds: moldsRunningOnThisMachine
+        };
+      });
+
+      setMachines(transformedMachines);
+
+      // Compute Global Stats
+      const totalMoldsRunning = transformedMachines.reduce((sum, m) => sum + m.moldsRunning, 0);
+      const totalMoldsCapacity = transformedMachines.reduce((sum, m) => sum + m.maxMolds, 0);
+      const totalCapacityUtilization = Math.round((totalMoldsRunning / totalMoldsCapacity) * 100) || 0;
+
+      setStats({
+        totalMoldsRunning,
+        totalMoldsCapacity,
+        totalMachines: transformedMachines.length,
+        totalCapacityUtilization
+      });
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredMachines = machines
+    .filter(machine => {
+      const matchesSearch = machine.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            machine.molds.some(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      if (statusFilter === 'all') return matchesSearch;
+      if (statusFilter === 'empty') return matchesSearch && machine.molds.length === 0;
+      return matchesSearch && machine.status === statusFilter;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'high') return b.loadPercentage - a.loadPercentage;
+      if (sortBy === 'low') return a.loadPercentage - b.loadPercentage;
+      return 0;
+    });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <Header stats={mockDashboardStats} />
+      <Header stats={stats} />
       
-      <main>
+      <main className="relative min-h-[400px]">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 bg-slate-900/10 backdrop-blur-[2px] flex items-center justify-center rounded-2xl">
+            <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+          </div>
+        )}
+
         <div className="flex flex-col gap-6 mb-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
@@ -84,9 +187,11 @@ export function LiveDashboard() {
                   <ArrowUpDown className="h-4 w-4 text-slate-400" />
                 </div>
                 <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
                   className="block w-full pl-9 pr-8 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors appearance-none cursor-pointer"
                 >
-                  <option>{t('sortByCapacity')}</option>
+                  <option value="none">{t('sortByCapacity')}</option>
                   <option value="high">High to Low</option>
                   <option value="low">Low to High</option>
                 </select>
@@ -95,7 +200,16 @@ export function LiveDashboard() {
           </div>
         </div>
         
-        <MachineList machines={filteredMachines} />
+        {machines.length === 0 && !isLoading ? (
+          <div className="text-center py-20 bg-slate-800/50 rounded-2xl border border-dashed border-slate-700">
+            <div className="inline-flex p-4 bg-slate-900/50 rounded-full mb-4">
+              <Search className="w-8 h-8 text-slate-600" />
+            </div>
+            <p className="text-slate-400 font-medium">No machines found. Try seeding some data in SQL Editor.</p>
+          </div>
+        ) : (
+          <MachineList machines={filteredMachines} />
+        )}
       </main>
     </div>
   );

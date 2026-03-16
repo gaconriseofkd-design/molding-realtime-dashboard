@@ -59,6 +59,10 @@ const translations: Translations = {
   uploadSuccess: { en: 'Upload successful!', vi: 'Tải lên thành công!' },
   uploadFailed: { en: 'Upload failed!', vi: 'Tải lỗi! Vui lòng kiểm tra lại.' },
   invalidFormat: { en: 'Invalid Excel format. Required columns: Mold, Size, Quantity.', vi: 'Sai định dạng Excel. Yêu cầu 3 cột: Mold, Size, Quantity.' },
+  selectMachine: { en: 'Select Machine', vi: 'Chọn Máy' },
+  selectMold: { en: 'Select Mold', vi: 'Chọn Khuôn' },
+  scanSuccess: { en: 'Operation successful!', vi: 'Thực hiện thành công!' },
+  scanError: { en: 'Operation failed!', vi: 'Thực hiện thất bại!' },
   save: { en: 'Save', vi: 'Lưu' },
   cancel: { en: 'Cancel', vi: 'Hủy' },
   initialQuantity: { en: 'Initial Quantity', vi: 'Số lượng ban đầu' }
