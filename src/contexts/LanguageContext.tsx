@@ -68,7 +68,10 @@ const translations: Translations = {
   save: { en: 'Save', vi: 'Lưu' },
   cancel: { en: 'Cancel', vi: 'Hủy' },
   initialQuantity: { en: 'Initial Quantity', vi: 'Số lượng ban đầu' },
-  exportExcel: { en: 'Export Excel', vi: 'Xuất Excel' }
+  exportExcel: { en: 'Export Excel', vi: 'Xuất Excel' },
+  searchMold: { en: 'Search Mold ID...', vi: 'Tìm mã khuôn...' },
+  recentMolds: { en: 'Recent', vi: 'Gần đây' },
+  toggleCamera: { en: 'Camera', vi: 'Máy ảnh' }
 };
 
 interface LanguageContextType {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle, RefreshCw } from 'lucide-react';
+import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle, RefreshCw, Search, Power } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -15,6 +15,10 @@ export function ScanInOut() {
   const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
+  
+  const [moldSearchTerm, setMoldSearchTerm] = useState('');
+  const [isSearchingMold, setIsSearchingMold] = useState(false);
+  const [recentMolds, setRecentMolds] = useState<string[]>([]);
   
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
@@ -36,12 +40,16 @@ export function ScanInOut() {
 
   useEffect(() => {
     fetchMeta();
+    // Load recent molds from localStorage
+    const savedRecents = localStorage.getItem('recent_molds');
+    if (savedRecents) setRecentMolds(JSON.parse(savedRecents));
+
     // Tự động mở camera khi vào trang
     startScanner();
     return () => {
       stopScanner();
     };
-  }, [machines]); // Re-run if machines list updates to ensure scanner handles valid checks
+  }, [machines]);
 
   const fetchMeta = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name').order('id');
@@ -93,10 +101,17 @@ export function ScanInOut() {
     }
   };
 
+  const handleToggleCamera = async () => {
+    if (isCameraActive) {
+      await stopScanner();
+      setIsCameraActive(false);
+    } else {
+      await startScanner();
+    }
+  };
+
   const handleScannedResult = (decodedText: string) => {
     const code = decodedText.trim().toUpperCase();
-    
-    // Sử dụng Ref để lấy giá trị thực tế ngay lúc này
     const currentMachine = selectedMachineRef.current;
 
     if (!currentMachine) {
@@ -124,11 +139,22 @@ export function ScanInOut() {
         if (moldExists) {
           setSelectedMoldId(code);
           setValidationError(null);
+          // Add to recent
+          updateRecentMolds(code);
         } else {
           setValidationError(`Khuôn ${code} không tồn tại!`);
         }
       }
     }
+  };
+
+  const updateRecentMolds = (moldId: string) => {
+    setRecentMolds(prev => {
+      const filtered = prev.filter(m => m !== moldId);
+      const updated = [moldId, ...filtered].slice(0, 5);
+      localStorage.setItem('recent_molds', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const selectedMold = molds.find(m => m.id === selectedMoldId);
@@ -196,6 +222,10 @@ export function ScanInOut() {
     }
   };
 
+  const filteredMolds = molds.filter(m => 
+    m.id.toLowerCase().includes(moldSearchTerm.toLowerCase())
+  ).slice(0, 50);
+
   return (
     <div className="max-w-md mx-auto h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-20 sm:pb-0">
       
@@ -208,12 +238,16 @@ export function ScanInOut() {
         {!isCameraActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 text-slate-400 gap-4 z-10">
             <Camera className="w-16 h-16 opacity-30" />
-            <button 
-              onClick={startScanner}
-              className="bg-indigo-500 hover:bg-indigo-400 text-white px-6 py-2 rounded-xl font-bold shadow-lg transition-transform active:scale-95"
-            >
-              Mở Camera Quét
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">Camera Off</p>
+              <button 
+                onClick={handleToggleCamera}
+                className="bg-indigo-500 hover:bg-indigo-400 text-white px-8 py-3 rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center gap-2"
+              >
+                <Power className="w-5 h-5" />
+                BẬT CAMERA
+              </button>
+            </div>
           </div>
         )}
 
@@ -227,13 +261,11 @@ export function ScanInOut() {
                style={{ top: '0%' }}
             />
             <button 
-              onClick={async () => {
-                await stopScanner();
-                setIsCameraActive(false);
-              }}
-              className="absolute top-4 right-4 z-20 bg-slate-900/50 p-2 rounded-full text-white hover:bg-rose-500 transition-colors"
+              onClick={handleToggleCamera}
+              className="absolute top-4 right-4 z-20 bg-rose-500/20 hover:bg-rose-500 backdrop-blur-md p-3 rounded-2xl text-rose-400 hover:text-white transition-all shadow-lg border border-rose-500/20 group"
+              title="Tắt Camera"
             >
-              <StopCircle className="w-6 h-6" />
+              <StopCircle className="w-6 h-6 group-active:scale-90 transition-transform" />
             </button>
           </>
         )}
@@ -261,7 +293,7 @@ export function ScanInOut() {
           <div className={`p-3 rounded-xl border transition-colors ${selectedMachineId ? 'bg-indigo-500/20 border-indigo-500/10' : 'bg-slate-700/50 border-slate-600'}`}>
             <Cpu className={`w-6 h-6 ${selectedMachineId ? 'text-indigo-400' : 'text-slate-500'}`} />
           </div>
-          <div className="flex-1 text-left">
+          <div className="flex-1 text-left relative">
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('selectedMachine')}</p>
             <div className="flex gap-2">
               <select 
@@ -294,38 +326,109 @@ export function ScanInOut() {
 
         <div className="h-px w-full bg-slate-700/50"></div>
 
-        {/* Mold Selection - Disabled if no machine */}
-        <div className={`flex items-center gap-4 transition-opacity duration-300 ${!selectedMachineId ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-          <div className="bg-emerald-500/20 p-3 rounded-xl border border-emerald-500/10 flex-shrink-0">
-            <Package className="w-6 h-6 text-emerald-400" />
-          </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('scannedMold')}</p>
-            <div className="flex items-center gap-2">
-              <select 
-                value={selectedMoldId}
-                onChange={(e) => setSelectedMoldId(e.target.value)}
-                className="flex-1 bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="">-- {t('selectMold')} --</option>
-                {molds.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
-              </select>
-              {selectedMoldId && (
-                <button 
-                  onClick={() => setSelectedMoldId('')}
-                  className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                </button>
-              )}
-              {selectedMold && (
-                <div className="flex items-center gap-1.5 bg-indigo-500/20 px-3 py-2 rounded-xl border border-indigo-500/20 whitespace-nowrap">
-                  <Tag className="w-4 h-4 text-indigo-400" />
-                  <span className="text-xs font-black text-indigo-300 uppercase">{selectedMold.size}</span>
+        {/* Mold Selection - Enhanced with Search and Recents */}
+        <div className={`flex flex-col gap-3 transition-opacity duration-300 ${!selectedMachineId ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
+          <div className="flex items-center gap-4">
+            <div className="bg-emerald-500/20 p-3 rounded-xl border border-emerald-500/10 flex-shrink-0">
+              <Package className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('scannedMold')}</p>
+              
+              <div className="relative">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <input 
+                      type="text"
+                      value={selectedMoldId || moldSearchTerm}
+                      placeholder={t('searchMold')}
+                      onFocus={() => setIsSearchingMold(true)}
+                      onChange={(e) => {
+                        setMoldSearchTerm(e.target.value);
+                        setSelectedMoldId('');
+                        setIsSearchingMold(true);
+                      }}
+                      className="w-full bg-slate-900/50 border border-slate-600 rounded-xl pl-10 pr-4 py-2 text-white font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+                    />
+                  </div>
+                  {selectedMoldId && (
+                    <button 
+                      onClick={() => { setSelectedMoldId(''); setMoldSearchTerm(''); }}
+                      className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors shadow-sm"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                    </button>
+                  )}
+                  {selectedMold && (
+                    <div className="flex-shrink-0 flex items-center gap-1.5 bg-indigo-500/20 px-3 py-2 rounded-xl border border-indigo-500/20 whitespace-nowrap">
+                      <Tag className="w-4 h-4 text-indigo-400" />
+                      <span className="text-xs font-black text-indigo-300 uppercase">{selectedMold.size}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Autocomplete Dropdown */}
+                <AnimatePresence>
+                  {isSearchingMold && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsSearchingMold(false)}></div>
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto z-50 scrollbar-hide"
+                      >
+                        {filteredMolds.length > 0 ? (
+                          filteredMolds.map(m => (
+                            <button
+                              key={m.id}
+                              onClick={() => {
+                                setSelectedMoldId(m.id);
+                                setIsSearchingMold(false);
+                                setMoldSearchTerm('');
+                                updateRecentMolds(m.id);
+                              }}
+                              className="w-full text-left px-5 py-3 hover:bg-indigo-500/20 text-slate-300 font-bold border-b border-slate-800/50 flex items-center justify-between group transition-colors"
+                            >
+                              <span>{m.id}</span>
+                              <span className="text-xs bg-slate-800 group-hover:bg-indigo-500/40 px-2 py-0.5 rounded text-slate-500 group-hover:text-indigo-200 uppercase">{m.size}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-5 py-4 text-slate-500 text-center italic">Không tìm thấy mã khuôn này</div>
+                        )}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
+
+          {/* Recent Molds Chips */}
+          {recentMolds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pl-14">
+              <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{t('recentMolds')}:</span>
+              {recentMolds.map(rid => (
+                <button
+                  key={rid}
+                  onClick={() => {
+                    setSelectedMoldId(rid);
+                    setMoldSearchTerm('');
+                    updateRecentMolds(rid);
+                  }}
+                  className={`px-3 py-1 rounded-full text-[10px] font-black transition-all border ${
+                    selectedMoldId === rid 
+                    ? 'bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-500/20' 
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  {rid}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -411,6 +514,13 @@ export function ScanInOut() {
         }
         #reader {
           border: none !important;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}} />
 
