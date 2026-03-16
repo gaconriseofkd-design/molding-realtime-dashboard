@@ -417,7 +417,7 @@ export function ScanInOut() {
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto z-50 scrollbar-hide"
+                        className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] max-h-64 overflow-y-auto z-[100] scrollbar-hide"
                       >
                         {moldResults.length > 0 ? (
                           moldResults.map(m => (
@@ -429,14 +429,14 @@ export function ScanInOut() {
                                 setIsSearchingMold(false);
                                 updateRecentMolds(m.id);
                               }}
-                              className="w-full text-left px-5 py-3 hover:bg-indigo-500/20 text-slate-300 font-bold border-b border-slate-800/50 flex items-center justify-between group transition-colors"
+                              className="w-full text-left px-5 py-4 hover:bg-indigo-500/30 text-white font-bold border-b border-slate-800 last:border-0 flex items-center justify-between group transition-colors active:bg-indigo-500/50"
                             >
-                              <span>{m.id}</span>
-                              <span className="text-xs bg-slate-800 group-hover:bg-indigo-500/40 px-2 py-0.5 rounded text-slate-500 group-hover:text-indigo-200 uppercase">{m.size}</span>
+                              <span className="text-base">{m.id}</span>
+                              <span className="text-[10px] bg-indigo-500/20 group-hover:bg-indigo-500/40 px-2 py-1 rounded-lg text-indigo-300 font-black uppercase ring-1 ring-indigo-500/30">{m.size}</span>
                             </button>
                           ))
                         ) : (
-                          <div className="px-5 py-4 text-slate-500 text-center italic">Không tìm thấy mã khuôn này</div>
+                          <div className="px-5 py-6 text-slate-400 text-center italic font-medium bg-slate-900/50">Không tìm thấy mã khuôn này</div>
                         )}
                       </motion.div>
                     </>
