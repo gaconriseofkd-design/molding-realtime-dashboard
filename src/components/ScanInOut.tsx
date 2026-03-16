@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Camera, Minus, Plus, Cpu, Package, ScanLine, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle } from 'lucide-react';
+import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode';
