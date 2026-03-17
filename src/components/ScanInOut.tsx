@@ -20,6 +20,7 @@ export function ScanInOut() {
   const [moldSearchTerm, setMoldSearchTerm] = useState('');
   const [isSearchingMold, setIsSearchingMold] = useState(false);
   const [recentMolds, setRecentMolds] = useState<string[]>([]);
+  const [machineCapacity, setMachineCapacity] = useState<{current: number, max: number} | null>(null);
   
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
@@ -29,6 +30,11 @@ export function ScanInOut() {
 
   useEffect(() => {
     selectedMachineRef.current = selectedMachineId;
+    if (selectedMachineId) {
+      fetchMachineCapacity(selectedMachineId);
+    } else {
+      setMachineCapacity(null);
+    }
   }, [selectedMachineId]);
 
   useEffect(() => {
@@ -76,6 +82,19 @@ export function ScanInOut() {
       setMolds(moData);
       moldsRef.current = moData;
     }
+  };
+
+  const fetchMachineCapacity = async (machineId: string) => {
+    if (!machineId) {
+      setMachineCapacity(null);
+      return;
+    }
+    const { data: machine } = await supabase.from('machines').select('max_molds').eq('id', machineId).single();
+    const { data: running } = await supabase.from('running_molds').select('quantity').eq('machine_id', machineId);
+    
+    const current = running?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+    const max = machine?.max_molds || 12;
+    setMachineCapacity({ current, max });
   };
 
   const stopScanner = async () => {
@@ -292,6 +311,7 @@ export function ScanInOut() {
       }
 
       setShowSuccess(true);
+      if (selectedMachineId) fetchMachineCapacity(selectedMachineId); // Refresh UI capacity
       setTimeout(() => setShowSuccess(false), 2000);
       setQty(1);
     } catch (error: any) {
@@ -414,6 +434,24 @@ export function ScanInOut() {
                 </button>
               )}
             </div>
+            {selectedMachineId && machineCapacity && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-2 space-y-1"
+              >
+                <div className="flex justify-between text-[11px] font-bold">
+                  <span className="text-slate-400">{t('curMoldsOnMachine')}:</span>
+                  <span className="text-white">{machineCapacity.current} / {machineCapacity.max}</span>
+                </div>
+                <div className="flex justify-between text-[11px] font-bold">
+                  <span className="text-slate-400">{t('remCapacity')}:</span>
+                  <span className={machineCapacity.max - machineCapacity.current > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                    {Math.max(0, machineCapacity.max - machineCapacity.current)}
+                  </span>
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
 

@@ -128,6 +128,8 @@ const translations: Translations = {
   stopCamera: { en: 'Stop Camera', vi: 'Tắt Máy ảnh' },
   errCameraOpen: { en: 'Could not open camera. Please grant permissions or check HTTPS connection.', vi: 'Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.' },
   errMachineInactive: { en: 'Machine is not active (Stopped or Paused). Operations not allowed.', vi: 'Máy không ở trạng thái hoạt động (Đang ngưng hoặc Tạm dừng). Không thể thực hiện thao tác.' },
+  curMoldsOnMachine: { en: 'Current molds on machine', vi: 'Số khuôn đang có trên máy' },
+  remCapacity: { en: 'Remaining capacity', vi: 'Số khuôn tối đa còn lại' },
 };
 
 interface LanguageContextType {
