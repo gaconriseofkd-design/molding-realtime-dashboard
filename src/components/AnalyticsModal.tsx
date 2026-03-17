@@ -127,8 +127,8 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                     <PieChart width={CHART_WIDTH} height={CHART_HEIGHT}>
                       <Pie
                         data={stats.statusData}
-                        cx="50%"
-                        cy="45%"
+                        cx={210}
+                        cy={120}
                         innerRadius={70}
                         outerRadius={105}
                         paddingAngle={4}
