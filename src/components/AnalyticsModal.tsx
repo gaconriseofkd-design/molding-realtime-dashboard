@@ -443,6 +443,31 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-6">
+
+            {/* Efficiency History Line Chart — full width, TOP */}
+            <div className="mb-6 bg-slate-800/40 p-6 rounded-2xl border border-indigo-500/20">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4" /> Lịch sử hiệu suất tải theo ngày (30 ngày gần nhất)
+                </h3>
+                {efficiencyHistory.length > 0 && (
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <span>Thấp nhất: <strong className="text-rose-400">{Math.min(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
+                    <span>Cao nhất: <strong className="text-emerald-400">{Math.max(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
+                    <span>Hôm nay: <strong className="text-indigo-300">{efficiencyHistory[efficiencyHistory.length - 1]?.efficiency ?? '—'}%</strong></span>
+                  </div>
+                )}
+              </div>
+              {historyLoading ? (
+                <div className="flex items-center justify-center h-40 gap-3 text-slate-400">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" />
+                  Đang tải lịch sử...
+                </div>
+              ) : (
+                <EfficiencyLineChart data={efficiencyHistory} />
+              )}
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
               {/* 1. Status Distribution Donut */}
@@ -531,30 +556,6 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                 />
               </div>
 
-            </div>
-
-            {/* Efficiency History Line Chart — full width */}
-            <div className="mt-6 bg-slate-800/40 p-6 rounded-2xl border border-indigo-500/20">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4" /> Lịch sử hiệu suất tải theo ngày (30 ngày gần nhất)
-                </h3>
-                {efficiencyHistory.length > 0 && (
-                  <div className="flex items-center gap-4 text-xs text-slate-400">
-                    <span>Thấp nhất: <strong className="text-rose-400">{Math.min(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
-                    <span>Cao nhất: <strong className="text-emerald-400">{Math.max(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
-                    <span>Hôm nay: <strong className="text-indigo-300">{efficiencyHistory[efficiencyHistory.length - 1]?.efficiency ?? '—'}%</strong></span>
-                  </div>
-                )}
-              </div>
-              {historyLoading ? (
-                <div className="flex items-center justify-center h-40 gap-3 text-slate-400">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" />
-                  Đang tải lịch sử...
-                </div>
-              ) : (
-                <EfficiencyLineChart data={efficiencyHistory} />
-              )}
             </div>
 
             {/* Underloaded Alert — full width */}
