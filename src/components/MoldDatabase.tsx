@@ -127,17 +127,33 @@ export function MoldDatabase() {
         return;
       }
 
-      // Upsert to Supabase
-      const { error } = await supabase
-        .from('mold_master')
-        .upsert(formattedData, { onConflict: 'id, size' })
-        .select(); // selecting returns the inserted rows and helps surface deeper db errors
+      // Deduplicate data to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time" error
+      // This happens if the same (id, size) exists multiple times in the Excel file
+      const dedupedMap = new Map();
+      formattedData.forEach(item => {
+        const key = `${item.id}|${item.size}`;
+        if (dedupedMap.has(key)) {
+          // If duplicate, we sum the quantities
+          const existing = dedupedMap.get(key);
+          existing.total_owned += item.total_owned;
+        } else {
+          dedupedMap.set(key, { ...item });
+        }
+      });
+      const finalData = Array.from(dedupedMap.values());
 
-      if (error) {
-        throw error;
+      // Chunked Upsert to Supabase (e.g., 100 rows at a time)
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < finalData.length; i += CHUNK_SIZE) {
+        const chunk = finalData.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase
+          .from('mold_master')
+          .upsert(chunk, { onConflict: 'id, size' });
+
+        if (error) throw error;
       }
       
-      alert(t('uploadSuccess'));
+      alert(t('uploadSuccess') + ` (${finalData.length} records processed)`);
       fetchMolds();
     } catch (error: any) {
       console.error('Upload Error:', error);
