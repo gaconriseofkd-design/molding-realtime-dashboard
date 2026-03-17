@@ -215,20 +215,44 @@ export function ScanInOut() {
       setIsSubmitting(true);
       const scanQty = Number(qty);
 
-      // 1. Fetch fresh machine info and all currently running molds for this machine
-      // to avoid stale state issues and race conditions.
-      const [{ data: machineDetail }, { data: currentRunning }] = await Promise.all([
-        supabase.from('machines').select('max_molds').eq('id', selectedMachineId).single(),
-        supabase.from('running_molds').select('mold_id, mold_size, quantity, uuid').eq('machine_id', selectedMachineId)
-      ]);
+      // 1. Fetch fresh machine info and all currently running molds for this machine 
+      // directly from Supabase to ensure we have the most recent data.
+      const machineRes = await supabase.from('machines').select('max_molds, operational_status, name').eq('id', selectedMachineId).single();
+      const runningRes = await supabase.from('running_molds').select('mold_id, mold_size, quantity, uuid').eq('machine_id', selectedMachineId);
 
-      const maxMolds = machineDetail?.max_molds || 12;
-      const currentTotal = currentRunning?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-      const existing = currentRunning?.find(m => m.mold_id === selectedMoldId && m.mold_size === selectedSize);
+      if (machineRes.error) throw machineRes.error;
+      if (runningRes.error) throw runningRes.error;
+
+      const machineDetail = machineRes.data;
+      const currentRunning = runningRes.data || [];
+
+      // Determine Capacity (use actual DB value or the default logic if DB is null)
+      const dbMax = machineDetail?.max_molds;
+      const fallbackMax = (() => {
+        const num = parseInt(selectedMachineId.replace(/\D/g, ''));
+        if (num >= 33 && num <= 40) return 24;
+        if (num >= 45 && num <= 50) return 32;
+        return 12;
+      })();
+      const maxMolds = dbMax || fallbackMax;
+
+      const opStatus = machineDetail?.operational_status || 'active';
+      const currentTotal = currentRunning.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const existing = currentRunning.find(m => m.mold_id === selectedMoldId && m.mold_size === selectedSize);
+
+      // RULE 1: Machine must be ACTIVE
+      if (opStatus !== 'active') {
+        const statusLabel = opStatus === 'stop' ? t('opStop') : t('opPause');
+        alert(`${t('machine')} ${selectedMachineId} (${statusLabel}) - ${t('errMachineInactive')}`);
+        setIsSubmitting(false);
+        return;
+      }
 
       if (scanType === 'IN') {
-        if (currentTotal + scanQty > maxMolds) {
-          alert(t('errCapacityExceeded').replace('{max}', maxMolds.toString()));
+        // RULE 2: Cannot exceed capacity
+        const newProposedTotal = currentTotal + scanQty;
+        if (newProposedTotal > maxMolds) {
+          alert(`${t('errCapacityExceeded').replace('{max}', maxMolds.toString())}\n(${t('total').toUpperCase()}: ${currentTotal} + ${scanQty} = ${newProposedTotal})`);
           setIsSubmitting(false);
           return;
         }
@@ -245,6 +269,7 @@ export function ScanInOut() {
 
         if (error) throw error;
       } else {
+        // SCAN OUT
         if (!existing) {
           alert(t('errMoldNotOnMachine'));
           setIsSubmitting(false);

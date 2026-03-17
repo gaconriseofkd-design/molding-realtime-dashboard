@@ -127,6 +127,7 @@ const translations: Translations = {
   errCapacityExceeded: { en: 'Capacity exceeded! This machine can only hold {max} molds.', vi: 'Vượt quá công suất! Máy này chỉ chứa được tối đa {max} khuôn.' },
   stopCamera: { en: 'Stop Camera', vi: 'Tắt Máy ảnh' },
   errCameraOpen: { en: 'Could not open camera. Please grant permissions or check HTTPS connection.', vi: 'Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.' },
+  errMachineInactive: { en: 'Machine is not active (Stopped or Paused). Operations not allowed.', vi: 'Máy không ở trạng thái hoạt động (Đang ngưng hoặc Tạm dừng). Không thể thực hiện thao tác.' },
 };
 
 interface LanguageContextType {

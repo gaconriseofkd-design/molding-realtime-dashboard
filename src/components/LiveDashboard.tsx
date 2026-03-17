@@ -1,7 +1,7 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
@@ -104,7 +104,7 @@ export function LiveDashboard() {
           }));
 
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
-        const maxMolds = getMachineCapacity(m.id);
+        const maxMolds = m.max_molds || getMachineCapacity(m.id);
         const loadPercentage = Math.round((moldsCount / maxMolds) * 100) || 0;
         const operationalStatus: 'active' | 'stop' | 'pause' = m.operational_status ?? 'active';
 
@@ -251,9 +251,16 @@ export function LiveDashboard() {
 
   const handleSaveEdit = async () => {
     if (!selectedMachine) return;
-    const totalQty = editingMolds.reduce((sum, m) => sum + (m.qty || 0), 0);
+    
+    // 1. BLOCK if machine is not ACTIVE
+    if (selectedMachine.operationalStatus !== 'active') {
+      alert(t('errMachineInactive'));
+      return;
+    }
+
+    const totalQty = editingMolds.reduce((sum, m) => sum + Number(m.qty || 0), 0);
     if (totalQty > selectedMachine.maxMolds) {
-      alert(t('errCapacityExceeded').replace('{max}', selectedMachine.maxMolds.toString()));
+      alert(`${t('errCapacityExceeded').replace('{max}', selectedMachine.maxMolds.toString())}\n(${t('total').toUpperCase()}: ${totalQty} / ${selectedMachine.maxMolds})`);
       setIsSaving(false);
       return;
     }
@@ -668,6 +675,12 @@ export function LiveDashboard() {
                     </span>
                   </div>
                 </div>
+                {selectedMachine.operationalStatus !== 'active' && (
+                  <div className="bg-rose-500/20 border border-rose-500/30 px-4 py-2 rounded-xl flex items-center gap-2 mt-2">
+                    <StopCircle className="w-4 h-4 text-rose-400" />
+                    <span className="text-[10px] font-black text-rose-400 uppercase tracking-wider">{t('errMachineInactive')}</span>
+                  </div>
+                )}
                 <button 
                   onClick={() => setSelectedMachine(null)}
                   className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
@@ -726,7 +739,7 @@ export function LiveDashboard() {
                 </button>
                 <button 
                   onClick={handleSaveEdit}
-                  disabled={isSaving || (editingMolds.reduce((s, m) => s + (m.qty || 0), 0) > selectedMachine.maxMolds)}
+                  disabled={isSaving || (selectedMachine.operationalStatus !== 'active') || (editingMolds.reduce((s, m) => s + Number(m.qty || 0), 0) > selectedMachine.maxMolds)}
                   className="flex-1 py-3 rounded-xl font-bold bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:bg-indigo-400 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
