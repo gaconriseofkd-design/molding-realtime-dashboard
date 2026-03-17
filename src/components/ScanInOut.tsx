@@ -213,26 +213,27 @@ export function ScanInOut() {
 
     try {
       setIsSubmitting(true);
+      const scanQty = Number(qty);
 
-      const { data: allRunningOnMachine } = await supabase
-        .from('running_molds')
-        .select('mold_id, mold_size, quantity, uuid')
-        .eq('machine_id', selectedMachineId);
+      // 1. Fetch fresh machine info and all currently running molds for this machine
+      // to avoid stale state issues and race conditions.
+      const [{ data: machineDetail }, { data: currentRunning }] = await Promise.all([
+        supabase.from('machines').select('max_molds').eq('id', selectedMachineId).single(),
+        supabase.from('running_molds').select('mold_id, mold_size, quantity, uuid').eq('machine_id', selectedMachineId)
+      ]);
 
-      const existing = allRunningOnMachine?.find(m => m.mold_id === selectedMoldId && m.mold_size === selectedSize);
-      
+      const maxMolds = machineDetail?.max_molds || 12;
+      const currentTotal = currentRunning?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+      const existing = currentRunning?.find(m => m.mold_id === selectedMoldId && m.mold_size === selectedSize);
+
       if (scanType === 'IN') {
-        const machine = machines.find(m => m.id === selectedMachineId);
-        const maxMolds = machine?.max_molds || 12;
-        const currentTotal = allRunningOnMachine?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-        
-        if (currentTotal + qty > maxMolds) {
+        if (currentTotal + scanQty > maxMolds) {
           alert(t('errCapacityExceeded').replace('{max}', maxMolds.toString()));
           setIsSubmitting(false);
           return;
         }
 
-        const newQty = (existing?.quantity || 0) + qty;
+        const newQty = (existing?.quantity || 0) + scanQty;
         const { error } = await supabase
           .from('running_molds')
           .upsert({
@@ -246,9 +247,10 @@ export function ScanInOut() {
       } else {
         if (!existing) {
           alert(t('errMoldNotOnMachine'));
+          setIsSubmitting(false);
           return;
         }
-        const newQty = existing.quantity - qty;
+        const newQty = existing.quantity - scanQty;
         if (newQty <= 0) {
           const { error } = await supabase
             .from('running_molds')
