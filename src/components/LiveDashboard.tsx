@@ -1,14 +1,14 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsModal } from './AnalyticsModal';
-import { BarChart as BarChartIcon } from 'lucide-react';
+import { SimpleMachineView } from './SimpleMachineView';
 
 export function LiveDashboard() {
   const { t } = useLanguage();
@@ -37,6 +37,9 @@ export function LiveDashboard() {
 
   // Analytics Modal State
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+
+  // View mode state: grid (default) or simple (matrix)
+  const [viewMode, setViewMode] = useState<'grid' | 'simple'>('grid');
 
   // Operational status change state
   const [statusChangeTarget, setStatusChangeTarget] = useState<Machine | null>(null);
@@ -404,6 +407,27 @@ export function LiveDashboard() {
                   <option value="low">Low to High</option>
                 </select>
               </div>
+
+              <div className="flex bg-slate-800/80 p-1 rounded-lg border border-slate-700 h-[38px] ml-auto sm:ml-0">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                    viewMode === 'grid' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{t('gridView')}</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('simple')}
+                  className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                    viewMode === 'simple' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{t('simpleView')}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -415,7 +439,7 @@ export function LiveDashboard() {
             </div>
             <p className="text-slate-400 font-medium">No machines found. Try seeding some data in SQL Editor.</p>
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <MachineList
               machines={filteredMachines}
@@ -446,6 +470,12 @@ export function LiveDashboard() {
               </div>
             </motion.button>
           </div>
+        ) : (
+          <SimpleMachineView 
+            machines={filteredMachines}
+            onMachineClick={handleEditMachine}
+            onStatusChange={(machine: Machine) => setStatusChangeTarget(machine)}
+          />
         )}
       </main>
 

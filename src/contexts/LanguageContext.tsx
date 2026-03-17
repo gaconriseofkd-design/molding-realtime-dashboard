@@ -87,6 +87,9 @@ const translations: Translations = {
   // Add machine
   addNewMachine: { en: 'Add New Machine', vi: 'Thêm Máy Mới' },
   addMachineHint: { en: 'Auto-number & set capacity', vi: 'Dễ dàng đánh số & thiết lập công suất' },
+  viewMode: { en: 'View Mode', vi: 'Chế độ xem' },
+  simpleView: { en: 'Simple View', vi: 'Xem Tổng Quan' },
+  gridView: { en: 'Grid View', vi: 'Xem Chi Tiết' },
 };
 
 interface LanguageContextType {
