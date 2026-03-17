@@ -20,7 +20,7 @@ export interface MoldMaster {
   size: string;
   totalOwned: number;
   currentlyRunning: number;
-  status: 'active' | 'maintenance' | 'retired';
+  status: string;
 }
 
 export interface DashboardStats {

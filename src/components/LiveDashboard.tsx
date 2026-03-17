@@ -1,12 +1,14 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
 import { utils, writeFile } from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AnalyticsModal } from './AnalyticsModal';
+import { BarChart as BarChartIcon } from 'lucide-react';
 
 export function LiveDashboard() {
   const { t } = useLanguage();
@@ -26,6 +28,16 @@ export function LiveDashboard() {
   const [editingMolds, setEditingMolds] = useState<Mold[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Machine Creation State
+  const [isAddMachineModalOpen, setIsAddMachineModalOpen] = useState(false);
+  const [newMachineId, setNewMachineId] = useState('');
+  const [newMachineName, setNewMachineName] = useState('');
+  const [newMachineMaxMolds, setNewMachineMaxMolds] = useState<number>(12);
+  const [isAddingMachine, setIsAddingMachine] = useState(false);
+
+  // Analytics Modal State
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+
   useEffect(() => {
     fetchData();
 
@@ -41,6 +53,18 @@ export function LiveDashboard() {
       supabase.removeChannel(runningMoldsSubscription);
     };
   }, []);
+
+  const getMachineCapacity = (machineId: string): number => {
+    // Extract numeric part of machine ID (e.g., "M-01" or "M01" -> 1)
+    const num = parseInt(machineId.replace(/\D/g, ''));
+    if (isNaN(num)) return 12; // Default fallback
+
+    if ((num >= 1 && num <= 32) || (num >= 41 && num <= 44)) return 12;
+    if (num >= 33 && num <= 40) return 24;
+    if (num >= 45 && num <= 50) return 32;
+    
+    return 12; // Default for others
+  };
 
   const fetchData = async () => {
     try {
@@ -73,14 +97,19 @@ export function LiveDashboard() {
           }));
 
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
-        const loadPercentage = Math.round((moldsCount / m.max_molds) * 100) || 0;
+        const maxMolds = getMachineCapacity(m.id);
+        const loadPercentage = Math.round((moldsCount / maxMolds) * 100) || 0;
+
+        let status: 'optimal' | 'warning' | 'underutilized' = 'underutilized';
+        if (loadPercentage >= 80) status = 'optimal';
+        else if (loadPercentage >= 50) status = 'warning';
 
         return {
           id: m.id,
           name: m.name,
-          status: m.status,
+          status,
           loadPercentage,
-          maxMolds: m.max_molds,
+          maxMolds, // Overwriting with dynamic capacity logic per request
           moldsRunning: moldsCount,
           molds: moldsRunningOnThisMachine
         };
@@ -212,6 +241,36 @@ export function LiveDashboard() {
     }
   };
 
+  const handleAddMachine = async () => {
+    if (!newMachineId.trim()) {
+      alert("Vui lòng nhập ID máy!");
+      return;
+    }
+    
+    setIsAddingMachine(true);
+    try {
+      const { error } = await supabase.from('machines').insert([{
+        id: newMachineId.trim().toUpperCase(),
+        name: newMachineName.trim() || `Machine ${newMachineId}`,
+        max_molds: newMachineMaxMolds,
+        status: 'underutilized'
+      }]);
+      
+      if (error) throw error;
+      
+      setIsAddMachineModalOpen(false);
+      setNewMachineId('');
+      setNewMachineName('');
+      setNewMachineMaxMolds(12);
+      await fetchData();
+    } catch (error: any) {
+      console.error(error);
+      alert('Error adding machine: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsAddingMachine(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <Header stats={stats} />
@@ -236,6 +295,13 @@ export function LiveDashboard() {
               >
                 <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
                 {t('exportExcel')}
+              </button>
+              <button
+                onClick={() => setIsAnalyticsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-indigo-500/5"
+              >
+                <BarChartIcon className="w-4 h-4" />
+                Thống kê & Biểu đồ
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm font-medium">
@@ -313,9 +379,126 @@ export function LiveDashboard() {
             <p className="text-slate-400 font-medium">No machines found. Try seeding some data in SQL Editor.</p>
           </div>
         ) : (
-          <MachineList machines={filteredMachines} onMachineClick={handleEditMachine} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <MachineList machines={filteredMachines} onMachineClick={handleEditMachine} />
+            
+            {/* Add Machine "Plus" Card */}
+            <motion.button
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ y: -4, scale: 1.02 }}
+              onClick={() => {
+                // Auto-suggest next ID based on existing count
+                const nextId = machines.length + 1;
+                setNewMachineId(`M-${nextId.toString().padStart(2, '0')}`);
+                setNewMachineName(`Máy ${nextId}`);
+                setIsAddMachineModalOpen(true);
+              }}
+              className="bg-slate-800/40 backdrop-blur border-2 border-dashed border-slate-700 rounded-2xl p-8 flex flex-col items-center justify-center gap-4 hover:bg-slate-800/60 hover:border-indigo-500/50 transition-all group min-h-[280px]"
+            >
+              <div className="bg-slate-700/50 p-4 rounded-full group-hover:bg-indigo-500/20 transition-colors">
+                <PlusCircle className="w-10 h-10 text-slate-500 group-hover:text-indigo-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-slate-400 group-hover:text-white transition-colors">{t('addNewMachine') || 'Thêm Máy Mới'}</p>
+                <p className="text-xs text-slate-500 mt-1">Dễ dàng đánh số & thiết lập công suất</p>
+              </div>
+            </motion.button>
+          </div>
         )}
       </main>
+
+      {/* Add Machine Modal */}
+      <AnimatePresence>
+        {isAddMachineModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddMachineModalOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-slate-800 border-l border-slate-700 shadow-2xl z-50 flex flex-col"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
+                <h2 className="text-xl font-bold text-white">{t('addNewMachine') || 'Thêm Máy Mới'}</h2>
+                <button 
+                  onClick={() => setIsAddMachineModalOpen(false)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 p-6 overflow-y-auto space-y-6 scrollbar-thin text-left">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">ID Máy (VD: M01)</label>
+                  <input 
+                    type="text" 
+                    value={newMachineId}
+                    onChange={(e) => setNewMachineId(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono uppercase"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tên Máy</label>
+                  <input 
+                    type="text" 
+                    value={newMachineName}
+                    onChange={(e) => setNewMachineName(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Công suất tải tối đa (Khuôn)</label>
+                  <input 
+                    type="number" 
+                    value={newMachineMaxMolds}
+                    onChange={(e) => setNewMachineMaxMolds(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                  />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {[12, 24, 32].map(cap => (
+                      <button 
+                        key={cap}
+                        onClick={() => setNewMachineMaxMolds(cap)}
+                        className={`text-[10px] font-bold px-3 py-1 rounded-full transition-all ${newMachineMaxMolds === cap ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+                      >
+                        {cap} Khuôn
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-slate-700/50 bg-slate-900/30 flex gap-4">
+                <button 
+                  onClick={() => setIsAddMachineModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl font-bold bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  onClick={handleAddMachine}
+                  disabled={isAddingMachine}
+                  className="flex-1 py-3 rounded-xl font-bold bg-indigo-500 text-white shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:bg-indigo-400 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isAddingMachine ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  {t('save')}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Slide-over Modal for Editing Molds on a Machine */}
       <AnimatePresence>
@@ -409,6 +592,13 @@ export function LiveDashboard() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Analytics Visualization Modal */}
+      <AnalyticsModal 
+        isOpen={isAnalyticsModalOpen}
+        onClose={() => setIsAnalyticsModalOpen(false)}
+        machines={machines}
+      />
     </div>
   );
 }

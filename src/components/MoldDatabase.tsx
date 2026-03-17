@@ -16,10 +16,23 @@ export function MoldDatabase() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modal State
+  const [editingMold, setEditingMold] = useState<MoldMaster | null>(null);
   const [newMoldId, setNewMoldId] = useState('');
   const [newMoldSize1, setNewMoldSize1] = useState('');
   const [newMoldSize2, setNewMoldSize2] = useState('');
   const [newMoldQty, setNewMoldQty] = useState<number>(10);
+  const [statusSelection, setStatusSelection] = useState('active');
+  const [customStatus, setCustomStatus] = useState('');
+
+  const resetModal = () => {
+    setEditingMold(null);
+    setNewMoldId('');
+    setNewMoldSize1('');
+    setNewMoldSize2('');
+    setNewMoldQty(10);
+    setStatusSelection('active');
+    setCustomStatus('');
+  };
 
   useEffect(() => {
     fetchMolds();
@@ -121,23 +134,64 @@ export function MoldDatabase() {
       ? `${newMoldSize1.trim()}-${newMoldSize2.trim()}` 
       : newMoldSize1.trim();
 
+    const finalStatus = statusSelection === 'other' ? customStatus.trim() : statusSelection;
+
     try {
-      const { error } = await supabase.from('mold_master').insert([{
+      const moldData = {
         id: newMoldId.trim().toUpperCase(),
         size: finalSize,
         total_owned: newMoldQty,
-        status: 'active'
-      }]);
+        status: finalStatus || 'active'
+      };
+
+      let error;
+      if (editingMold) {
+        ({ error } = await supabase
+          .from('mold_master')
+          .update(moldData)
+          .match({ id: editingMold.id, size: editingMold.size }));
+      } else {
+        ({ error } = await supabase
+          .from('mold_master')
+          .insert([moldData]));
+      }
 
       if (error) throw error;
 
       setIsModalOpen(false);
-      setNewMoldId(''); setNewMoldSize1(''); setNewMoldSize2(''); setNewMoldQty(10);
+      resetModal();
       fetchMolds();
     } catch (error: any) {
       console.error(error);
       alert('Failed to save: ' + error.message);
     }
+  };
+
+  const handleEdit = (mold: MoldMaster) => {
+    setEditingMold(mold);
+    setNewMoldId(mold.id);
+    
+    // Split size back to size1 and size2 if possible
+    if (mold.size.includes('-')) {
+      const [s1, s2] = mold.size.split('-');
+      setNewMoldSize1(s1);
+      setNewMoldSize2(s2);
+    } else {
+      setNewMoldSize1(mold.size);
+      setNewMoldSize2('');
+    }
+    
+    setNewMoldQty(mold.totalOwned);
+    
+    if (['active', 'repairing', 'broken_waiting'].includes(mold.status)) {
+      setStatusSelection(mold.status);
+      setCustomStatus('');
+    } else {
+      setStatusSelection('other');
+      setCustomStatus(mold.status);
+    }
+    
+    setIsModalOpen(true);
   };
 
   const filteredMolds = molds.filter(mold => mold.id.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -252,16 +306,29 @@ export function MoldDatabase() {
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         Active
                       </span>
-                    ) : (
+                    ) : mold.status === 'repairing' ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/20 uppercase">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        Maintenance
+                        Repairing
+                      </span>
+                    ) : mold.status === 'broken_waiting' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/20 uppercase">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        Broken
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-400 border border-slate-500/20 uppercase">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                        {mold.status}
                       </span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 rounded-lg transition-colors">
+                      <button 
+                        onClick={() => handleEdit(mold)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 rounded-lg transition-colors"
+                      >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button 
@@ -302,7 +369,7 @@ export function MoldDatabase() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => { setIsModalOpen(false); resetModal(); }}
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50"
             />
             <motion.div
@@ -313,9 +380,9 @@ export function MoldDatabase() {
               className="fixed inset-y-0 right-0 w-full max-w-md bg-slate-800 border-l border-slate-700 shadow-2xl z-50 flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
-                <h2 className="text-xl font-bold text-white">{t('addNewMold')}</h2>
+                <h2 className="text-xl font-bold text-white">{editingMold ? t('editMold') || 'Chỉnh sửa khuôn' : t('addNewMold')}</h2>
                 <button 
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); resetModal(); }}
                   className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -374,11 +441,38 @@ export function MoldDatabase() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('status') || 'Trạng thái'}</label>
+                  <select 
+                    value={statusSelection}
+                    onChange={(e) => setStatusSelection(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  >
+                    <option value="active">Active</option>
+                    <option value="repairing">Đi sửa</option>
+                    <option value="broken_waiting">Bị hư chờ sửa</option>
+                    <option value="other">Trạng thái khác (Nhập vô)</option>
+                  </select>
+                </div>
+
+                {statusSelection === 'other' && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nhập trạng thái khác</label>
+                    <input 
+                      type="text" 
+                      value={customStatus}
+                      onChange={(e) => setCustomStatus(e.target.value)}
+                      placeholder="e.g. Đang bảo quản"
+                      className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+                )}
+
               </div>
 
               <div className="p-6 border-t border-slate-700/50 bg-slate-900/30 flex gap-4">
                 <button 
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); resetModal(); }}
                   className="flex-1 py-3 rounded-xl font-bold bg-slate-700 text-white hover:bg-slate-600 transition-colors"
                 >
                   {t('cancel')}
