@@ -22,6 +22,7 @@ function DonutChart({
   onSegmentClick: (name: string) => void;
   activeSegment: string | null;
 }) {
+  const { t } = useLanguage();
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0)
     return (
@@ -170,6 +171,7 @@ function VBarChart({
   color: string;
   unit?: string;
 }) {
+  const { t } = useLanguage();
   if (!data || data.length === 0)
     return <p className="text-slate-500 italic text-center py-8">{t('noData')}</p>;
   const max = Math.max(...data.map((d) => d[dataKey]), 1);
@@ -204,6 +206,7 @@ function VBarChart({
 type EfficiencyPoint = { log_date: string; efficiency: number };
 
 function EfficiencyLineChart({ data }: { data: EfficiencyPoint[] }) {
+  const { t } = useLanguage();
   if (data.length === 0)
     return (
       <div className="flex items-center justify-center h-40 text-slate-500 italic text-sm text-center px-10">
