@@ -118,6 +118,14 @@ const translations: Translations = {
   errAddMachine: { en: 'Error adding machine', vi: 'Lỗi thêm máy' },
   offLabel: { en: 'OFF', vi: 'Tắt' },
   clickToChangeStatus: { en: 'Click to change status', vi: 'Nhấn để đổi trạng thái' },
+  selectMoldSize: { en: 'Select Mold Size:', vi: 'Chọn Size khuôn:' },
+  noMoldFound: { en: 'No mold found', vi: 'Không tìm thấy mã khuôn này' },
+  btnEnableCamera: { en: 'ENABLE CAMERA', vi: 'BẬT CAMERA' },
+  errMachineNotFound: { en: 'Machine not found!', vi: 'Máy không tồn tại!' },
+  errMoldNotFound: { en: 'Mold not found!', vi: 'Khuôn không tồn tại!' },
+  errMoldNotOnMachine: { en: 'This mold is not on the machine!', vi: 'Khuôn này không có trên máy!' },
+  stopCamera: { en: 'Stop Camera', vi: 'Tắt Máy ảnh' },
+  errCameraOpen: { en: 'Could not open camera. Please grant permissions or check HTTPS connection.', vi: 'Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.' },
 };
 
 interface LanguageContextType {

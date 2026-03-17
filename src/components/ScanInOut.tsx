@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle, RefreshCw, Search, Power } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +15,7 @@ export function ScanInOut() {
   const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
   
   const [moldSearchTerm, setMoldSearchTerm] = useState('');
   const [isSearchingMold, setIsSearchingMold] = useState(false);
@@ -125,7 +126,7 @@ export function ScanInOut() {
       if (err.includes?.("reader")) {
          setTimeout(startScanner, 1000);
       } else {
-        setValidationError("Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.");
+        setValidationError(t('errCameraOpen'));
       }
       setIsCameraActive(false);
     }
@@ -158,7 +159,7 @@ export function ScanInOut() {
         setSelectedMachineId(code);
         setValidationError(null);
       } else {
-        setValidationError(`Máy ${code} không tồn tại!`);
+        setValidationError(`${t('machine')} ${code} ${t('errMachineNotFound')}`);
       }
     } else {
       if (code.startsWith('M')) {
@@ -169,14 +170,19 @@ export function ScanInOut() {
           setValidationError(null);
         }
       } else {
-        const moldExists = allMolds.some(m => m.id === code);
-        if (moldExists) {
+        const matchingMolds = allMolds.filter(m => m.id === code);
+        if (matchingMolds.length > 0) {
           setSelectedMoldId(code);
           setValidationError(null);
-          // Add to recent
           updateRecentMolds(code);
+          
+          if (matchingMolds.length === 1) {
+            setSelectedSize(matchingMolds[0].size);
+          } else {
+            setSelectedSize(''); // Force size selection
+          }
         } else {
-          setValidationError(`Khuôn ${code} không tồn tại!`);
+          setValidationError(`${t('molds')} ${code} ${t('errMoldNotFound')}`);
         }
       }
     }
@@ -191,7 +197,9 @@ export function ScanInOut() {
     });
   };
 
-  const selectedMold = molds.find(m => m.id === selectedMoldId);
+  const availableSizes = useMemo(() => {
+    return molds.filter(m => m.id === selectedMoldId).map(m => m.size);
+  }, [molds, selectedMoldId]);
 
   const handleSubmit = async () => {
     if (!selectedMachineId) {
@@ -209,7 +217,7 @@ export function ScanInOut() {
       const { data: existing } = await supabase
         .from('running_molds')
         .select('uuid, quantity')
-        .match({ machine_id: selectedMachineId, mold_id: selectedMoldId, mold_size: selectedMold?.size })
+        .match({ machine_id: selectedMachineId, mold_id: selectedMoldId, mold_size: selectedSize })
         .single();
 
       if (scanType === 'IN') {
@@ -219,14 +227,14 @@ export function ScanInOut() {
           .upsert({
             machine_id: selectedMachineId,
             mold_id: selectedMoldId,
-            mold_size: selectedMold?.size,
+            mold_size: selectedSize,
             quantity: newQty
           }, { onConflict: 'machine_id, mold_id, mold_size' });
 
         if (error) throw error;
       } else {
         if (!existing) {
-          alert('Khuôn này không có trên máy!');
+          alert(t('errMoldNotOnMachine'));
           return;
         }
         const newQty = existing.quantity - qty;
@@ -284,7 +292,7 @@ export function ScanInOut() {
                 className="bg-indigo-500 hover:bg-indigo-400 text-white px-8 py-3 rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center gap-2"
               >
                 <Power className="w-5 h-5" />
-                BẬT CAMERA
+                {t('btnEnableCamera')}
               </button>
             </div>
           </div>
@@ -302,7 +310,7 @@ export function ScanInOut() {
             <button 
               onClick={handleToggleCamera}
               className="absolute top-4 right-4 z-20 bg-rose-500/20 hover:bg-rose-500 backdrop-blur-md p-3 rounded-2xl text-rose-400 hover:text-white transition-all shadow-lg border border-rose-500/20 group"
-              title="Tắt Camera"
+              title={t('stopCamera')}
             >
               <StopCircle className="w-6 h-6 group-active:scale-90 transition-transform" />
             </button>
@@ -353,7 +361,11 @@ export function ScanInOut() {
               </select>
               {selectedMachineId && (
                 <button 
-                  onClick={() => { setSelectedMachineId(''); setSelectedMoldId(''); }}
+                  onClick={() => { 
+                    setSelectedMachineId(''); 
+                    setSelectedMoldId(''); 
+                    setSelectedSize('');
+                  }}
                   className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
                 >
                   <RefreshCw className="w-5 h-5" />
@@ -393,16 +405,20 @@ export function ScanInOut() {
                   </div>
                   {selectedMoldId && (
                     <button 
-                      onClick={() => { setSelectedMoldId(''); setMoldSearchTerm(''); }}
+                      onClick={() => { 
+                        setSelectedMoldId(''); 
+                        setMoldSearchTerm(''); 
+                        setSelectedSize('');
+                      }}
                       className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors shadow-sm"
                     >
                       <RefreshCw className="w-5 h-5" />
                     </button>
                   )}
-                  {selectedMold && (
+                  {selectedSize && (
                     <div className="flex-shrink-0 flex items-center gap-1.5 bg-indigo-500/20 px-3 py-2 rounded-xl border border-indigo-500/20 whitespace-nowrap">
                       <Tag className="w-4 h-4 text-indigo-400" />
-                      <span className="text-xs font-black text-indigo-300 uppercase">{selectedMold.size}</span>
+                      <span className="text-xs font-black text-indigo-300 uppercase">{selectedSize}</span>
                     </div>
                   )}
                 </div>
@@ -421,22 +437,23 @@ export function ScanInOut() {
                       >
                         {moldResults.length > 0 ? (
                           moldResults.map(m => (
-                            <button
-                              key={m.id}
-                              onClick={() => {
-                                setSelectedMoldId(m.id);
-                                setMoldSearchTerm(m.id); // Đồng bộ text input với mã chọn
-                                setIsSearchingMold(false);
-                                updateRecentMolds(m.id);
-                              }}
-                              className="w-full text-left px-5 py-4 hover:bg-indigo-500/30 text-white font-bold border-b border-slate-800 last:border-0 flex items-center justify-between group transition-colors active:bg-indigo-500/50"
-                            >
-                              <span className="text-base">{m.id}</span>
-                              <span className="text-[10px] bg-indigo-500/20 group-hover:bg-indigo-500/40 px-2 py-1 rounded-lg text-indigo-300 font-black uppercase ring-1 ring-indigo-500/30">{m.size}</span>
-                            </button>
+                             <button
+                               key={m.id}
+                               onClick={() => {
+                                 setSelectedMoldId(m.id);
+                                 setSelectedSize(m.size);
+                                 setMoldSearchTerm(m.id);
+                                 setIsSearchingMold(false);
+                                 updateRecentMolds(m.id);
+                               }}
+                               className="w-full text-left px-5 py-4 hover:bg-indigo-500/30 text-white font-bold border-b border-slate-800 last:border-0 flex items-center justify-between group transition-colors active:bg-indigo-500/50"
+                             >
+                               <span className="text-base">{m.id}</span>
+                               <span className="text-[10px] bg-indigo-500/20 group-hover:bg-indigo-500/40 px-2 py-1 rounded-lg text-indigo-300 font-black uppercase ring-1 ring-indigo-500/30">{m.size}</span>
+                             </button>
                           ))
                         ) : (
-                          <div className="px-5 py-6 text-slate-400 text-center italic font-medium bg-slate-900/50">Không tìm thấy mã khuôn này</div>
+                          <div className="px-5 py-6 text-slate-400 text-center italic font-medium bg-slate-900/50">{t('noMoldFound')}</div>
                         )}
                       </motion.div>
                     </>
@@ -457,6 +474,10 @@ export function ScanInOut() {
                     setSelectedMoldId(rid);
                     setMoldSearchTerm('');
                     updateRecentMolds(rid);
+                    // Handle size automatically if only 1 size, otherwise will prompt
+                    const matching = molds.filter(m => m.id === rid);
+                    if (matching.length === 1) setSelectedSize(matching[0].size);
+                    else setSelectedSize('');
                   }}
                   className={`px-3 py-1 rounded-full text-[10px] font-black transition-all border ${
                     selectedMoldId === rid 
@@ -467,6 +488,28 @@ export function ScanInOut() {
                   {rid}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Size Choice Grid (if multiple sizes) */}
+          {selectedMoldId && availableSizes.length > 1 && (
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-700/30">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-14">{t('selectMoldSize')}</p>
+              <div className="flex flex-wrap gap-2 pl-14">
+                {availableSizes.map((size: string) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      selectedSize === size
+                        ? 'bg-indigo-500 text-white border-indigo-400 shadow-lg'
+                        : 'bg-slate-700/50 text-slate-300 border-slate-600 hover:border-slate-500'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -520,11 +563,11 @@ export function ScanInOut() {
 
       <button 
         onClick={handleSubmit}
-        disabled={isSubmitting || showSuccess || !selectedMachineId || !selectedMoldId}
+        disabled={isSubmitting || showSuccess || !selectedMachineId || !selectedMoldId || !selectedSize}
         className={`w-full relative mt-auto py-6 rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden ${
           showSuccess 
             ? 'bg-emerald-500 text-white' 
-            : !selectedMachineId || !selectedMoldId
+            : !selectedMachineId || !selectedMoldId || !selectedSize
               ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
               : 'bg-slate-100 hover:bg-white text-slate-900'
         }`}

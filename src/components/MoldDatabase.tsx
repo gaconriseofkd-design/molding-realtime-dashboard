@@ -36,25 +36,50 @@ export function MoldDatabase() {
 
   useEffect(() => {
     fetchMolds();
+
+    // Subscribe to both tables to keep data fresh
+    const channel = supabase
+      .channel('mold_db_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mold_master' }, () => fetchMolds())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'running_molds' }, () => fetchMolds())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchMolds = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      
+      // 1. Fetch master data
+      const { data: masterData, error: masterError } = await supabase
         .from('mold_master')
         .select('*')
         .order('id', { ascending: true });
 
-      if (error) throw error;
+      if (masterError) throw masterError;
 
-      // Transform db items to match MoldMaster type if needed
-      if (data) {
-        const mappedData: MoldMaster[] = data.map((item: any) => ({
+      // 2. Fetch running data to compute currentlyRunning
+      const { data: runningData, error: runningError } = await supabase
+        .from('running_molds')
+        .select('mold_id, mold_size, quantity');
+      
+      if (runningError) throw runningError;
+
+      const runningCountMap: Record<string, number> = {};
+      runningData?.forEach(item => {
+        const key = `${item.mold_id}_${item.mold_size}`;
+        runningCountMap[key] = (runningCountMap[key] || 0) + (item.quantity || 0);
+      });
+
+      if (masterData) {
+        const mappedData: MoldMaster[] = masterData.map((item: any) => ({
           id: item.id,
           size: item.size,
           totalOwned: item.total_owned,
-          currentlyRunning: 0, // In a real app, this would be computed by joining running_molds
+          currentlyRunning: runningCountMap[`${item.id}_${item.size}`] || 0,
           status: item.status
         }));
         setMolds(mappedData);
