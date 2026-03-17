@@ -8,4 +8,21 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      external: [
+        'path',
+        'fs',
+        'crypto',
+        'stream',
+        'util',
+        'zlib',
+        'events',
+        './dist/cpexcel.js'
+      ]
+    }
+  },
+  optimizeDeps: {
+    include: ['recharts', 'xlsx']
+  }
 })

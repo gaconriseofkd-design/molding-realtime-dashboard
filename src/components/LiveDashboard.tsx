@@ -5,7 +5,7 @@ import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, P
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
-import { utils, writeFile } from 'xlsx';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsModal } from './AnalyticsModal';
 import { BarChart as BarChartIcon } from 'lucide-react';
@@ -160,9 +160,9 @@ export function LiveDashboard() {
       }));
     });
 
-    const ws = utils.json_to_sheet(exportData);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, "Live Status");
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Live Status");
     
     // Auto-size columns
     const colWidths = [
@@ -170,7 +170,7 @@ export function LiveDashboard() {
     ];
     ws['!cols'] = colWidths;
 
-    writeFile(wb, `Molding_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `Molding_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const filteredMachines = machines
