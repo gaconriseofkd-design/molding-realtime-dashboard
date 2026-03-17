@@ -15,6 +15,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 32,
     loadPercentage: 93.75,
     status: 'optimal',
+    operationalStatus: 'active',
     molds: [
       { id: '1', name: 'OV_0224', size: '7Y', qty: 10 },
       { id: '2', name: 'OV_0112', size: '8M', qty: 8 },
@@ -28,6 +29,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 32,
     loadPercentage: 75,
     status: 'warning',
+    operationalStatus: 'active',
     molds: [
       { id: '4', name: 'OV_0224', size: '9M', qty: 12 },
       { id: '5', name: 'OV_0144', size: '7Y', qty: 12 },
@@ -40,6 +42,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 32,
     loadPercentage: 43.75,
     status: 'underutilized',
+    operationalStatus: 'active',
     molds: [
       { id: '6', name: 'OV_0556', size: '10M', qty: 8 },
       { id: '7', name: 'OV_0556', size: '11M', qty: 6 },
@@ -52,6 +55,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 32,
     loadPercentage: 96.87,
     status: 'optimal',
+    operationalStatus: 'active',
     molds: [
       { id: '8', name: 'OV_0992', size: '8Y', qty: 15 },
       { id: '9', name: 'OV_0993', size: '9Y', qty: 16 },
@@ -64,6 +68,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 30,
     loadPercentage: 66.67,
     status: 'warning',
+    operationalStatus: 'active',
     molds: [
       { id: '10', name: 'OV_0111', size: '6W', qty: 10 },
       { id: '11', name: 'OV_0112', size: '7W', qty: 10 },
@@ -76,6 +81,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 30,
     loadPercentage: 93.33,
     status: 'optimal',
+    operationalStatus: 'active',
     molds: [
       { id: '12', name: 'OV_0777', size: '10M', qty: 14 },
       { id: '13', name: 'OV_0778', size: '11M', qty: 14 },
@@ -88,6 +94,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 28,
     loadPercentage: 42.85,
     status: 'underutilized',
+    operationalStatus: 'active',
     molds: [
       { id: '14', name: 'OV_0444', size: '8Y', qty: 12 },
     ],
@@ -99,6 +106,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 32,
     loadPercentage: 81.25,
     status: 'optimal',
+    operationalStatus: 'active',
     molds: [
       { id: '15', name: 'OV_0123', size: '7M', qty: 10 },
       { id: '16', name: 'OV_0124', size: '8M', qty: 8 },
@@ -112,6 +120,7 @@ export const mockMachines: Machine[] = [
     maxMolds: 14,
     loadPercentage: 100,
     status: 'optimal',
+    operationalStatus: 'active',
     molds: [
       { id: '18', name: 'OV_0201', size: '6M', qty: 12 },
       { id: '19', name: 'OV_0202', size: '6.5M', qty: 10 },
