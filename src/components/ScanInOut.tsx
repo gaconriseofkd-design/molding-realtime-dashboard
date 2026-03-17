@@ -11,7 +11,7 @@ export function ScanInOut() {
   const [qty, setQty] = useState(1);
   const [isCameraActive, setIsCameraActive] = useState(false);
   
-  const [machines, setMachines] = useState<{id: string, name: string}[]>([]);
+  const [machines, setMachines] = useState<{id: string, name: string, max_molds: number}[]>([]);
   const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
@@ -24,7 +24,7 @@ export function ScanInOut() {
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
   const selectedMoldRef = useRef('');
-  const machinesRef = useRef<{id: string, name: string}[]>([]);
+  const machinesRef = useRef<{id: string, name: string, max_molds: number}[]>([]);
   const moldsRef = useRef<{id: string, size: string}[]>([]);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export function ScanInOut() {
   }, []);
 
   const fetchMeta = async () => {
-    const { data: mData } = await supabase.from('machines').select('id, name').order('id');
+    const { data: mData } = await supabase.from('machines').select('id, name, max_molds').order('id');
     const { data: moData } = await supabase.from('mold_master').select('id, size').order('id');
     if (mData) {
       setMachines(mData);
@@ -214,13 +214,24 @@ export function ScanInOut() {
     try {
       setIsSubmitting(true);
 
-      const { data: existing } = await supabase
+      const { data: allRunningOnMachine } = await supabase
         .from('running_molds')
-        .select('uuid, quantity')
-        .match({ machine_id: selectedMachineId, mold_id: selectedMoldId, mold_size: selectedSize })
-        .single();
+        .select('mold_id, mold_size, quantity, uuid')
+        .eq('machine_id', selectedMachineId);
 
+      const existing = allRunningOnMachine?.find(m => m.mold_id === selectedMoldId && m.mold_size === selectedSize);
+      
       if (scanType === 'IN') {
+        const machine = machines.find(m => m.id === selectedMachineId);
+        const maxMolds = machine?.max_molds || 12;
+        const currentTotal = allRunningOnMachine?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+        
+        if (currentTotal + qty > maxMolds) {
+          alert(t('errCapacityExceeded').replace('{max}', maxMolds.toString()));
+          setIsSubmitting(false);
+          return;
+        }
+
         const newQty = (existing?.quantity || 0) + qty;
         const { error } = await supabase
           .from('running_molds')

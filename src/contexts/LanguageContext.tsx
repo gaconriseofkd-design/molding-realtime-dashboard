@@ -124,6 +124,7 @@ const translations: Translations = {
   errMachineNotFound: { en: 'Machine not found!', vi: 'Máy không tồn tại!' },
   errMoldNotFound: { en: 'Mold not found!', vi: 'Khuôn không tồn tại!' },
   errMoldNotOnMachine: { en: 'This mold is not on the machine!', vi: 'Khuôn này không có trên máy!' },
+  errCapacityExceeded: { en: 'Capacity exceeded! This machine can only hold {max} molds.', vi: 'Vượt quá công suất! Máy này chỉ chứa được tối đa {max} khuôn.' },
   stopCamera: { en: 'Stop Camera', vi: 'Tắt Máy ảnh' },
   errCameraOpen: { en: 'Could not open camera. Please grant permissions or check HTTPS connection.', vi: 'Không thể mở Camera. Vui lòng cấp quyền hoặc kiểm tra kết nối HTTPS.' },
 };
