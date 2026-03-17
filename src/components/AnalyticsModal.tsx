@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList
@@ -17,6 +17,16 @@ interface AnalyticsModalProps {
 export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProps) {
   const { t } = useLanguage();
   const [activeSegment, setActiveSegment] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => setIsReady(true), 300);
+      return () => clearTimeout(timer);
+    } else {
+      setIsReady(false);
+    }
+  }, [isOpen]);
 
   const stats = useMemo(() => {
     const optimal = machines.filter(m => m.status === 'optimal').map(m => m.id);
@@ -116,8 +126,8 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                   <LayoutGrid className="w-4 h-4" />
                   Trạng thái công suất máy
                 </h3>
-                <div className="h-[300px] w-full flex items-center justify-center">
-                  {stats.statusData.length > 0 ? (
+                <div className="h-[300px] w-full relative">
+                  {(isReady && stats.statusData.length > 0) ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -126,7 +136,7 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                           outerRadius={100}
                           paddingAngle={5}
                           dataKey="value"
-                          isAnimationActive={false} // Disable animation to debug
+                          isAnimationActive={true}
                           onClick={(data) => {
                             if (data && data.name) {
                               setActiveSegment(activeSegment === data.name ? null : data.name);
@@ -149,8 +159,14 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                         <Legend verticalAlign="bottom" height={36}/>
                       </PieChart>
                     </ResponsiveContainer>
+                  ) : !isReady ? (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
                   ) : (
-                    <p className="text-slate-500 italic">Không có dữ liệu máy</p>
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-slate-500 italic">Không có dữ liệu máy</p>
+                    </div>
                   )}
                 </div>
                 {activeSegment && (
@@ -177,10 +193,10 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                   <Zap className="w-4 h-4" />
                   Top 10 Khuôn Đang Chạy (Số lượng)
                 </h3>
-                <div className="h-[300px] w-full flex items-center justify-center">
-                  {stats.topMolds.length > 0 ? (
+                <div className="h-[300px] w-full relative">
+                  {(isReady && stats.topMolds.length > 0) ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stats.topMolds} layout="vertical">
+                      <BarChart data={stats.topMolds} layout="vertical" margin={{ left: 20, right: 30 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
                         <XAxis type="number" hide />
                         <YAxis 
@@ -198,8 +214,14 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                  ) : !isReady ? (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
                   ) : (
-                    <p className="text-slate-500 italic text-center">Chưa có khuôn nào đang chạy trên máy</p>
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-slate-500 italic text-center">Chưa có khuôn nào đang chạy trên máy</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -210,10 +232,10 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                   <Target className="w-4 h-4" />
                   Hiệu suất theo nhóm công suất máy
                 </h3>
-                <div className="h-[300px] w-full flex items-center justify-center">
-                  {stats.capacityData.length > 0 ? (
+                <div className="h-[300px] w-full relative">
+                  {(isReady && stats.capacityData.length > 0) ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stats.capacityData}>
+                      <BarChart data={stats.capacityData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
                         <YAxis stroke="#94a3b8" fontSize={12} unit="%" />
@@ -225,8 +247,14 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                  ) : !isReady ? (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
                   ) : (
-                    <p className="text-slate-500 italic">Không có nhóm công suất máy</p>
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-slate-500 italic">Không có nhóm công suất máy</p>
+                    </div>
                   )}
                 </div>
               </div>
