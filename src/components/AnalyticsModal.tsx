@@ -16,19 +16,8 @@ function DonutChart({ data }: { data: { name: string; value: number; color: stri
   if (total === 0) return <p className="text-slate-500 italic text-center py-16">Chưa có dữ liệu</p>;
 
   const cx = 100, cy = 100, r = 70, ir = 45;
-  const circumference = 2 * Math.PI * r;
-  let offset = 0;
 
-  const arcs = data.map(d => {
-    const pct = d.value / total;
-    const dash = pct * circumference;
-    const gap = circumference - dash;
-    const arc = { dash, gap, offset: offset * circumference / (2 * Math.PI * r) * circumference, color: d.color, name: d.name, value: d.value, pct };
-    offset += pct;
-    return arc;
-  });
-
-  // Recompute properly
+  // Compute arc paths
   let cumPct = 0;
   const arcs2 = data.map(d => {
     const pct = d.value / total;
