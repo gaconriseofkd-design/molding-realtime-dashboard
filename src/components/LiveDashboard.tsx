@@ -1,11 +1,12 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import type { Machine, DashboardStats } from '../types';
+import type { Machine, DashboardStats, Mold } from '../types';
 import { utils, writeFile } from 'xlsx';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function LiveDashboard() {
   const { t } = useLanguage();
@@ -20,6 +21,10 @@ export function LiveDashboard() {
     totalMachines: 0,
     totalCapacityUtilization: 0
   });
+
+  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [editingMolds, setEditingMolds] = useState<Mold[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -154,6 +159,59 @@ export function LiveDashboard() {
       return 0;
     });
 
+  const handleEditMachine = (machine: Machine) => {
+    setSelectedMachine(machine);
+    setEditingMolds(machine.molds.map(m => ({ ...m })));
+  };
+
+  const handleUpdateMoldQty = (index: number, delta: number) => {
+    setEditingMolds(prev => {
+      const newMolds = [...prev];
+      newMolds[index].qty = Math.max(0, newMolds[index].qty + delta);
+      return newMolds;
+    });
+  };
+
+  const setMoldQtyDirectly = (index: number, val: number) => {
+    setEditingMolds(prev => {
+      const newMolds = [...prev];
+      newMolds[index].qty = Math.max(0, val);
+      return newMolds;
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedMachine) return;
+    setIsSaving(true);
+    try {
+      const originalMolds = selectedMachine.molds;
+      for (const m of editingMolds) {
+        const orig = originalMolds.find(o => o.id === m.id && o.size === m.size);
+        if (!orig || orig.qty !== m.qty) {
+          if (m.qty > 0) {
+            await supabase.from('running_molds').upsert({
+              machine_id: selectedMachine.id,
+              mold_id: m.id,
+              mold_size: m.size,
+              quantity: m.qty
+            }, { onConflict: 'machine_id, mold_id, mold_size' });
+          } else if (m.qty === 0 && orig) {
+            await supabase.from('running_molds')
+              .delete()
+              .match({ machine_id: selectedMachine.id, mold_id: m.id, mold_size: m.size });
+          }
+        }
+      }
+      setSelectedMachine(null);
+      await fetchData();
+    } catch (error) {
+      console.error(error);
+      alert('Error updating molds');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <Header stats={stats} />
@@ -255,9 +313,102 @@ export function LiveDashboard() {
             <p className="text-slate-400 font-medium">No machines found. Try seeding some data in SQL Editor.</p>
           </div>
         ) : (
-          <MachineList machines={filteredMachines} />
+          <MachineList machines={filteredMachines} onMachineClick={handleEditMachine} />
         )}
       </main>
+
+      {/* Slide-over Modal for Editing Molds on a Machine */}
+      <AnimatePresence>
+        {selectedMachine && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedMachine(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-slate-800 border-l border-slate-700 shadow-2xl z-50 flex flex-col"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-wider uppercase">{selectedMachine.id}</h2>
+                  <p className="text-sm text-slate-400">{t('editMolds') || 'Edit Running Molds'}</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedMachine(null)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 p-6 overflow-y-auto overflow-x-hidden space-y-4 scrollbar-thin text-left">
+                {editingMolds.length === 0 ? (
+                  <div className="text-slate-400 text-center py-8 italic bg-slate-900/40 rounded-xl border border-slate-700/50">
+                    {t('noMolds') || 'No molds currently running on this machine.'}
+                  </div>
+                ) : (
+                  editingMolds.map((mold, idx) => (
+                    <div key={`${mold.id}-${mold.size}`} className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-xl flex flex-col gap-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-white">{mold.name}</span>
+                        <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-xs font-mono border border-indigo-500/20">{mold.size}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-slate-400 text-sm">{t('quantity') || 'Quantity'}:</span>
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => handleUpdateMoldQty(idx, -1)}
+                            className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center text-white hover:bg-rose-500 hover:text-white transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <input 
+                            type="number" 
+                            min="0"
+                            value={mold.qty}
+                            onChange={(e) => setMoldQtyDirectly(idx, parseInt(e.target.value) || 0)}
+                            className="w-16 bg-slate-800 border border-slate-600 rounded-lg py-1 text-center text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button 
+                            onClick={() => handleUpdateMoldQty(idx, 1)}
+                            className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center text-white hover:bg-emerald-500 hover:text-white transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="p-6 border-t border-slate-700/50 bg-slate-900/30 flex gap-4">
+                <button 
+                  onClick={() => setSelectedMachine(null)}
+                  className="flex-1 py-3 rounded-xl font-bold bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  onClick={handleSaveEdit}
+                  disabled={isSaving}
+                  className="flex-1 py-3 rounded-xl font-bold bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:bg-indigo-400 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  {t('save')}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

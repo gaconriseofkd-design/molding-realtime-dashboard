@@ -7,9 +7,10 @@ import { useLanguage } from '../contexts/LanguageContext';
 interface MachineCardProps {
   machine: Machine;
   index: number;
+  onClick?: () => void;
 }
 
-export function MachineCard({ machine, index }: MachineCardProps) {
+export function MachineCard({ machine, index, onClick }: MachineCardProps) {
   const { t } = useLanguage();
   const getStatusColor = (percentage: number) => {
     if (percentage > 80) return 'bg-emerald-500';
@@ -25,7 +26,8 @@ export function MachineCard({ machine, index }: MachineCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.5 }}
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className="bg-slate-800/80 backdrop-blur border border-slate-700 rounded-2xl p-5 shadow-lg hover:shadow-indigo-500/10 hover:border-slate-600 transition-all group flex flex-col h-full"
+      onClick={onClick}
+      className={`bg-slate-800/80 backdrop-blur border border-slate-700 rounded-2xl p-5 shadow-lg hover:shadow-indigo-500/10 hover:border-slate-600 transition-all group flex flex-col h-full ${onClick ? 'cursor-pointer' : ''}`}
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
