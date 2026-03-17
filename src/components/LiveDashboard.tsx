@@ -129,6 +129,20 @@ export function LiveDashboard() {
         totalCapacityUtilization
       });
 
+      // 4. Upsert today's efficiency snapshot for historical chart
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      if (totalMoldsCapacity > 0) {
+        await supabase.from('efficiency_log').upsert(
+          {
+            log_date: today,
+            efficiency: totalCapacityUtilization,
+            molds_running: totalMoldsRunning,
+            total_capacity: totalMoldsCapacity,
+          },
+          { onConflict: 'log_date' }
+        );
+      }
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {

@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, TrendingDown, Target, Layers, Cpu, Info } from 'lucide-react';
+import { X, TrendingDown, Target, Layers, Cpu, Info, BarChart2 } from 'lucide-react';
 import type { Machine } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { supabase } from '../utils/supabaseClient';
+
 
 interface AnalyticsModalProps {
   isOpen: boolean;
@@ -198,10 +200,142 @@ function VBarChart({
   );
 }
 
+// ── SVG Line Chart for historical efficiency ──────────────────────
+type EfficiencyPoint = { log_date: string; efficiency: number };
+
+function EfficiencyLineChart({ data }: { data: EfficiencyPoint[] }) {
+  if (data.length === 0)
+    return (
+      <div className="flex items-center justify-center h-40 text-slate-500 italic text-sm">
+        Chưa có dữ liệu lịch sử. Dữ liệu sẽ được ghi nhận tự động mỗi khi Dashboard tải.
+      </div>
+    );
+
+  const W = 900, H = 180;
+  const PAD = { top: 20, right: 20, bottom: 40, left: 44 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const values = data.map((d) => d.efficiency);
+  const maxVal = Math.max(...values, 10);
+  const minVal = 0;
+
+  const xScale = (i: number) => PAD.left + (i / Math.max(data.length - 1, 1)) * innerW;
+  const yScale = (v: number) => PAD.top + innerH - ((v - minVal) / (maxVal - minVal)) * innerH;
+
+  // Build SVG path
+  const points = data.map((d, i) => `${xScale(i)},${yScale(d.efficiency)}`);
+  const linePath = `M ${points.join(' L ')}`;
+  const areaPath = `M ${xScale(0)},${yScale(0)} L ${points.join(' L ')} L ${xScale(data.length - 1)},${yScale(0)} Z`;
+
+  // Y-axis gridlines
+  const gridLines = [0, 25, 50, 75, 100].filter((v) => v <= maxVal + 5);
+
+  // Format date label
+  const fmtDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  };
+
+  // Which x-labels to show (max ~8)
+  const step = Math.max(1, Math.ceil(data.length / 8));
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+        {/* Grid lines */}
+        {gridLines.map((v) => (
+          <g key={v}>
+            <line
+              x1={PAD.left} y1={yScale(v)} x2={W - PAD.right} y2={yScale(v)}
+              stroke="#334155" strokeWidth="1" strokeDasharray={v === 0 ? '0' : '4 4'}
+            />
+            <text x={PAD.left - 6} y={yScale(v) + 4} textAnchor="end" fill="#64748b" fontSize="10">
+              {v}%
+            </text>
+          </g>
+        ))}
+
+        {/* Area fill */}
+        <defs>
+          <linearGradient id="effGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#effGrad)" />
+
+        {/* Line */}
+        <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Dots + tooltip-style text */}
+        {data.map((d, i) => (
+          <g key={i}>
+            <circle cx={xScale(i)} cy={yScale(d.efficiency)} r={4} fill="#6366f1" stroke="#0f172a" strokeWidth="2" />
+            {/* Show value label only on last point or peaks */}
+            {(i === data.length - 1 || i === 0) && (
+              <text
+                x={xScale(i)}
+                y={yScale(d.efficiency) - 10}
+                textAnchor={i === 0 ? 'start' : 'end'}
+                fill="#a5b4fc"
+                fontSize="11"
+                fontWeight="bold"
+              >
+                {d.efficiency}%
+              </text>
+            )}
+          </g>
+        ))}
+
+        {/* X-axis labels */}
+        {data.map((d, i) =>
+          i % step === 0 || i === data.length - 1 ? (
+            <text
+              key={i}
+              x={xScale(i)}
+              y={H - 8}
+              textAnchor="middle"
+              fill="#64748b"
+              fontSize="10"
+            >
+              {fmtDate(d.log_date)}
+            </text>
+          ) : null
+        )}
+
+        {/* Vertical line at last point */}
+        <line
+          x1={xScale(data.length - 1)} y1={PAD.top}
+          x2={xScale(data.length - 1)} y2={PAD.top + innerH}
+          stroke="#6366f1" strokeWidth="1" strokeDasharray="3 3" opacity="0.5"
+        />
+      </svg>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────
 export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProps) {
   const { t } = useLanguage();
   const [activeSegment, setActiveSegment] = useState<string | null>(null);
+  const [efficiencyHistory, setEfficiencyHistory] = useState<EfficiencyPoint[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Fetch history when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setHistoryLoading(true);
+    supabase
+      .from('efficiency_log')
+      .select('log_date, efficiency')
+      .order('log_date', { ascending: true })
+      .limit(30)
+      .then(({ data }) => {
+        setEfficiencyHistory((data as EfficiencyPoint[]) || []);
+        setHistoryLoading(false);
+      });
+  }, [isOpen]);
 
   const stats = useMemo(() => {
     const optimal = machines.filter((m) => m.status === 'optimal');
@@ -399,7 +533,31 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
 
             </div>
 
-            {/* 5. Underloaded Alert — full width */}
+            {/* Efficiency History Line Chart — full width */}
+            <div className="mt-6 bg-slate-800/40 p-6 rounded-2xl border border-indigo-500/20">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4" /> Lịch sử hiệu suất tải theo ngày (30 ngày gần nhất)
+                </h3>
+                {efficiencyHistory.length > 0 && (
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <span>Thấp nhất: <strong className="text-rose-400">{Math.min(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
+                    <span>Cao nhất: <strong className="text-emerald-400">{Math.max(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
+                    <span>Hôm nay: <strong className="text-indigo-300">{efficiencyHistory[efficiencyHistory.length - 1]?.efficiency ?? '—'}%</strong></span>
+                  </div>
+                )}
+              </div>
+              {historyLoading ? (
+                <div className="flex items-center justify-center h-40 gap-3 text-slate-400">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" />
+                  Đang tải lịch sử...
+                </div>
+              ) : (
+                <EfficiencyLineChart data={efficiencyHistory} />
+              )}
+            </div>
+
+            {/* Underloaded Alert — full width */}
             {stats.underloadedMachines.length > 0 && (
               <div className="mt-6 bg-slate-800/40 p-6 rounded-2xl border border-rose-500/20">
                 <h3 className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2 flex items-center gap-2">
