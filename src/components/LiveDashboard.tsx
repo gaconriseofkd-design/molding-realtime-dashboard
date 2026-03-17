@@ -251,6 +251,13 @@ export function LiveDashboard() {
 
   const handleSaveEdit = async () => {
     if (!selectedMachine) return;
+    const totalQty = editingMolds.reduce((sum, m) => sum + (m.qty || 0), 0);
+    if (totalQty > selectedMachine.maxMolds) {
+      alert(t('errCapacityExceeded').replace('{max}', selectedMachine.maxMolds.toString()));
+      setIsSaving(false);
+      return;
+    }
+
     setIsSaving(true);
     try {
       const originalMolds = selectedMachine.molds;
@@ -650,7 +657,16 @@ export function LiveDashboard() {
               <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
                 <div>
                   <h2 className="text-xl font-bold text-white tracking-wider uppercase">{selectedMachine.id}</h2>
-                  <p className="text-sm text-slate-400">{t('editMolds') || 'Edit Running Molds'}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-sm text-slate-400">{t('editMolds') || 'Edit Running Molds'}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                      editingMolds.reduce((s, m) => s + (m.qty || 0), 0) > selectedMachine.maxMolds
+                        ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    }`}>
+                      {editingMolds.reduce((s, m) => s + (m.qty || 0), 0)} / {selectedMachine.maxMolds}
+                    </span>
+                  </div>
                 </div>
                 <button 
                   onClick={() => setSelectedMachine(null)}
@@ -710,7 +726,7 @@ export function LiveDashboard() {
                 </button>
                 <button 
                   onClick={handleSaveEdit}
-                  disabled={isSaving}
+                  disabled={isSaving || (editingMolds.reduce((s, m) => s + (m.qty || 0), 0) > selectedMachine.maxMolds)}
                   className="flex-1 py-3 rounded-xl font-bold bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:bg-indigo-400 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
