@@ -16,6 +16,7 @@ export function SimpleMachineView({ machines, onMachineClick, onStatusChange }: 
     if (machine.operationalStatus === 'pause') return 'bg-amber-500/20 border-amber-500/50 text-amber-400';
     
     const pct = machine.loadPercentage;
+    if (machine.moldsRunning > machine.maxMolds) return 'bg-rose-500/30 border-rose-500 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)] ring-1 ring-rose-500/50';
     if (pct >= 80) return 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400';
     if (pct >= 50) return 'bg-amber-500/20 border-amber-500/50 text-amber-400';
     return 'bg-rose-500/20 border-rose-500/50 text-rose-400';

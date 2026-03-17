@@ -11,7 +11,7 @@ export function ScanInOut() {
   const [qty, setQty] = useState(1);
   const [isCameraActive, setIsCameraActive] = useState(false);
   
-  const [machines, setMachines] = useState<{id: string, name: string, max_molds: number}[]>([]);
+  const [machines, setMachines] = useState<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
   const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
@@ -24,7 +24,7 @@ export function ScanInOut() {
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
   const selectedMoldRef = useRef('');
-  const machinesRef = useRef<{id: string, name: string, max_molds: number}[]>([]);
+  const machinesRef = useRef<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
   const moldsRef = useRef<{id: string, size: string}[]>([]);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export function ScanInOut() {
   }, []);
 
   const fetchMeta = async () => {
-    const { data: mData } = await supabase.from('machines').select('id, name, max_molds').order('id');
+    const { data: mData } = await supabase.from('machines').select('id, name, max_molds, operational_status').order('id');
     const { data: moData } = await supabase.from('mold_master').select('id, size').order('id');
     if (mData) {
       setMachines(mData);
@@ -395,7 +395,11 @@ export function ScanInOut() {
                 className={`flex-1 bg-slate-900/50 border rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer transition-all ${!selectedMachineId ? 'border-indigo-500/50 animate-pulse' : 'border-slate-600'}`}
               >
                 <option value="">-- {t('selectMachine')} --</option>
-                {machines.map(m => <option key={m.id} value={m.id}>{m.id} | {m.name}</option>)}
+                {machines.map(m => (
+                  <option key={m.id} value={m.id} className={m.operational_status !== 'active' ? 'text-slate-500 italic' : ''}>
+                    {m.id} | {m.name} {m.operational_status !== 'active' ? `(${m.operational_status.toUpperCase()})` : ''}
+                  </option>
+                ))}
               </select>
               {selectedMachineId && (
                 <button 

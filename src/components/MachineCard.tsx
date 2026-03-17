@@ -86,7 +86,9 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
         <div className="flex justify-between items-end mb-2">
           <span className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t('capacityLoad')}</span>
           <span className="text-sm text-slate-400 font-mono">
-            <strong className="text-slate-200">{machine.moldsRunning}</strong> / {machine.maxMolds} {t('molds')}
+            <strong className={`${machine.moldsRunning > machine.maxMolds ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+              {machine.moldsRunning}
+            </strong> / {machine.maxMolds} {t('molds')}
           </span>
         </div>
         <div className="h-2 w-full bg-slate-700/50 rounded-full overflow-hidden">
