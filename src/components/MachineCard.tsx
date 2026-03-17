@@ -11,14 +11,16 @@ interface MachineCardProps {
   onStatusChange?: (machine: Machine, newStatus: 'active' | 'stop' | 'pause') => void;
 }
 
-const OP_STATUS_CONFIG = {
-  active: { label: 'Đang chạy', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', dot: 'bg-emerald-400', Icon: Power },
-  pause: { label: 'Tạm ngưng', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', dot: 'bg-amber-400', Icon: PauseCircle },
-  stop: { label: 'Ngưng hoạt động', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30', dot: 'bg-rose-500', Icon: StopCircle },
-};
 
 export function MachineCard({ machine, index, onClick, onStatusChange }: MachineCardProps) {
   const { t } = useLanguage();
+
+  const OP_STATUS_CONFIG = {
+    active: { label: t('opActive'), color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', dot: 'bg-emerald-400', Icon: Power },
+    pause:  { label: t('opPause'),  color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/30',   dot: 'bg-amber-400',   Icon: PauseCircle },
+    stop:   { label: t('opStop'),   color: 'text-rose-400',    bg: 'bg-rose-500/10 border-rose-500/30',     dot: 'bg-rose-500',    Icon: StopCircle },
+  };
+
   const opCfg = OP_STATUS_CONFIG[machine.operationalStatus] ?? OP_STATUS_CONFIG.active;
 
   const getBarColor = (pct: number) => {
@@ -76,7 +78,7 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
           <span className={`text-2xl font-black ${isInactive ? 'text-slate-500' : 'text-white'}`}>
             {isInactive ? '—' : `${machine.loadPercentage}%`}
           </span>
-          {isInactive && <p className="text-[10px] text-slate-600 uppercase tracking-wider mt-0.5">Không tính</p>}
+          {isInactive && <p className="text-[10px] text-slate-600 uppercase tracking-wider mt-0.5">{t('notCounted')}</p>}
         </div>
       </div>
 

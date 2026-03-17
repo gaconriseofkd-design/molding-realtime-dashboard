@@ -71,7 +71,22 @@ const translations: Translations = {
   exportExcel: { en: 'Export Excel', vi: 'Xuất Excel' },
   searchMold: { en: 'Search Mold ID...', vi: 'Tìm mã khuôn...' },
   recentMolds: { en: 'Recent', vi: 'Gần đây' },
-  toggleCamera: { en: 'Camera', vi: 'Máy ảnh' }
+  toggleCamera: { en: 'Camera', vi: 'Máy ảnh' },
+  // Machine operational status
+  opActive: { en: 'Running', vi: 'Đang chạy' },
+  opPause: { en: 'Paused', vi: 'Tạm ngưng' },
+  opStop: { en: 'Stopped', vi: 'Ngưng hoạt động' },
+  opActiveLabel: { en: 'Running (Active)', vi: 'Đang hoạt động (Active)' },
+  opPauseLabel: { en: 'Paused', vi: 'Tạm ngưng (Pause)' },
+  opStopLabel: { en: 'Stopped', vi: 'Ngưng hoạt động (Stop)' },
+  opStatusTitle: { en: 'Set machine status', vi: 'Chọn trạng thái hoạt động của máy' },
+  opStatusCurrent: { en: 'Current', vi: 'Hiện tại' },
+  notCounted: { en: 'Excluded', vi: 'Không tính' },
+  // Analytics
+  analyticsBtn: { en: 'Analytics & Charts', vi: 'Thống kê & Biểu đồ' },
+  // Add machine
+  addNewMachine: { en: 'Add New Machine', vi: 'Thêm Máy Mới' },
+  addMachineHint: { en: 'Auto-number & set capacity', vi: 'Dễ dàng đánh số & thiết lập công suất' },
 };
 
 interface LanguageContextType {

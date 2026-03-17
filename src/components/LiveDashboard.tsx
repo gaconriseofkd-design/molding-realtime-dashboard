@@ -338,7 +338,7 @@ export function LiveDashboard() {
                 className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-indigo-500/5"
               >
                 <BarChartIcon className="w-4 h-4" />
-                Thống kê & Biểu đồ
+                {t('analyticsBtn')}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm font-medium">
@@ -442,7 +442,7 @@ export function LiveDashboard() {
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-slate-400 group-hover:text-white transition-colors">{t('addNewMachine') || 'Thêm Máy Mới'}</p>
-                <p className="text-xs text-slate-500 mt-1">Dễ dàng đánh số & thiết lập công suất</p>
+                <p className="text-xs text-slate-500 mt-1">{t('addMachineHint')}</p>
               </div>
             </motion.button>
           </div>
@@ -468,13 +468,13 @@ export function LiveDashboard() {
             >
               <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 w-72 pointer-events-auto">
                 <h3 className="text-base font-bold text-white mb-1">{statusChangeTarget.id}</h3>
-                <p className="text-xs text-slate-400 mb-5">Chọn trạng thái hoạt động của máy</p>
+                <p className="text-xs text-slate-400 mb-5">{t('opStatusTitle')}</p>
                 <div className="space-y-2">
                   {(['active', 'pause', 'stop'] as const).map((s) => {
                     const cfgMap = {
-                      active: { label: 'Đang hoạt động (Active)', color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' },
-                      pause: { label: 'Tạm ngưng (Pause)', color: 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' },
-                      stop: { label: 'Ngưng hoạt động (Stop)', color: 'border-rose-500/50 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20' },
+                      active: { label: t('opActiveLabel'), color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' },
+                      pause:  { label: t('opPauseLabel'),  color: 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' },
+                      stop:   { label: t('opStopLabel'),   color: 'border-rose-500/50 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20' },
                     };
                     const cfg = cfgMap[s];
                     const isCurrent = statusChangeTarget.operationalStatus === s;
@@ -489,7 +489,7 @@ export function LiveDashboard() {
                           disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         <span>{cfg.label}</span>
-                        {isCurrent && <span className="text-xs font-bold uppercase tracking-wider opacity-70">Hiện tại</span>}
+                        {isCurrent && <span className="text-xs font-bold uppercase tracking-wider opacity-70">{t('opStatusCurrent')}</span>}
                         {isChangingStatus && !isCurrent && <></>}
                       </button>
                     );
@@ -499,7 +499,7 @@ export function LiveDashboard() {
                   onClick={() => setStatusChangeTarget(null)}
                   className="mt-4 w-full py-2 rounded-xl border border-slate-600 text-slate-400 text-sm hover:text-white hover:border-slate-500 transition-colors"
                 >
-                  Hủy
+                  {t('cancel')}
                 </button>
               </div>
             </motion.div>
