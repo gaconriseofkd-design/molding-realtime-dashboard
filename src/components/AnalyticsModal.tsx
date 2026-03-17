@@ -56,10 +56,10 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
 
     return {
       statusData: [
-        { name: t('optimal'), value: optimal.length, ids: optimal, color: '#10b981' },
-        { name: t('warning'), value: warning.length, ids: warning, color: '#f59e0b' },
-        { name: t('underutilized'), value: underutilized.length, ids: underutilized, color: '#f43f5e' }
-      ],
+        { name: (t('optimal') || 'Optimal'), value: optimal.length, ids: optimal, color: '#10b981' },
+        { name: (t('warning') || 'Warning'), value: warning.length, ids: warning, color: '#f59e0b' },
+        { name: (t('underutilized') || 'Underutilized'), value: underutilized.length, ids: underutilized, color: '#f43f5e' }
+      ].filter(segment => segment.value > 0),
       topMolds,
       capacityData,
       underloadedMachines: machines
@@ -116,37 +116,42 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                   <LayoutGrid className="w-4 h-4" />
                   Trạng thái công suất máy
                 </h3>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={stats.statusData}
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        onClick={(data) => {
-                          if (data && data.name) {
-                            setActiveSegment(activeSegment === data.name ? null : data.name);
-                          }
-                        }}
-                      >
-                        {stats.statusData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.color} 
-                            stroke="rgba(0,0,0,0)"
-                            className="cursor-pointer outline-none"
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }}
-                        itemStyle={{ color: '#fff', fontWeight: 'bold' }}
-                      />
-                      <Legend verticalAlign="bottom" height={36}/>
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="h-[300px] w-full flex items-center justify-center">
+                  {stats.statusData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={stats.statusData}
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                          isAnimationActive={false} // Disable animation to debug
+                          onClick={(data) => {
+                            if (data && data.name) {
+                              setActiveSegment(activeSegment === data.name ? null : data.name);
+                            }
+                          }}
+                        >
+                          {stats.statusData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.color} 
+                              stroke="rgba(0,0,0,0)"
+                              className="cursor-pointer outline-none"
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }}
+                          itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                        />
+                        <Legend verticalAlign="bottom" height={36}/>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-slate-500 italic">Không có dữ liệu máy</p>
+                  )}
                 </div>
                 {activeSegment && (
                   <motion.div 
@@ -172,26 +177,30 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                   <Zap className="w-4 h-4" />
                   Top 10 Khuôn Đang Chạy (Số lượng)
                 </h3>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.topMolds} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                      <XAxis type="number" hide />
-                      <YAxis 
-                        dataKey="name" 
-                        type="category" 
-                        stroke="#94a3b8" 
-                        fontSize={10} 
-                        width={80}
-                      />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }}
-                      />
-                      <Bar dataKey="qty" fill="#6366f1" radius={[0, 4, 4, 0]}>
-                        <LabelList dataKey="qty" position="right" fill="#94a3b8" fontSize={10} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="h-[300px] w-full flex items-center justify-center">
+                  {stats.topMolds.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.topMolds} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                        <XAxis type="number" hide />
+                        <YAxis 
+                          dataKey="name" 
+                          type="category" 
+                          stroke="#94a3b8" 
+                          fontSize={10} 
+                          width={80}
+                        />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }}
+                        />
+                        <Bar dataKey="qty" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="qty" position="right" fill="#94a3b8" fontSize={10} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-slate-500 italic text-center">Chưa có khuôn nào đang chạy trên máy</p>
+                  )}
                 </div>
               </div>
 
@@ -201,20 +210,24 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                   <Target className="w-4 h-4" />
                   Hiệu suất theo nhóm công suất máy
                 </h3>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.capacityData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} unit="%" />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }}
-                      />
-                      <Bar dataKey="efficiency" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
-                        <LabelList dataKey="efficiency" position="top" fill="#94a3b8" fontSize={10} formatter={(v: any) => `${v}%`} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="h-[300px] w-full flex items-center justify-center">
+                  {stats.capacityData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.capacityData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                        <YAxis stroke="#94a3b8" fontSize={12} unit="%" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px' }}
+                        />
+                        <Bar dataKey="efficiency" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
+                          <LabelList dataKey="efficiency" position="top" fill="#94a3b8" fontSize={10} formatter={(v: any) => `${v}%`} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-slate-500 italic">Không có nhóm công suất máy</p>
+                  )}
                 </div>
               </div>
 
