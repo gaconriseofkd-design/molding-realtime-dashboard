@@ -275,7 +275,7 @@ export function LiveDashboard() {
       await fetchData();
     } catch (error) {
       console.error(error);
-      alert('Error updating molds');
+      alert(t('errUpdateMolds'));
     } finally {
       setIsSaving(false);
     }
@@ -283,7 +283,7 @@ export function LiveDashboard() {
 
   const handleAddMachine = async () => {
     if (!newMachineId.trim()) {
-      alert("Vui lòng nhập ID máy!");
+      alert(t('errEnterMachineId'));
       return;
     }
     
@@ -305,7 +305,7 @@ export function LiveDashboard() {
       await fetchData();
     } catch (error: any) {
       console.error(error);
-      alert('Error adding machine: ' + (error.message || 'Unknown error'));
+      alert(t('errAddMachine') + ': ' + (error.message || 'Unknown error'));
     } finally {
       setIsAddingMachine(false);
     }

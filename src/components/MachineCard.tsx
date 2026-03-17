@@ -56,7 +56,7 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
             }
           }}
           className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide transition-all hover:scale-105 ${opCfg.bg} ${opCfg.color}`}
-          title="Nhấn để đổi trạng thái"
+          title={t('clickToChangeStatus')}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${opCfg.dot} ${machine.operationalStatus === 'active' ? 'animate-pulse' : ''}`} />
           {opCfg.label}

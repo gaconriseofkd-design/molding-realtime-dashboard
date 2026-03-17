@@ -25,7 +25,7 @@ function DonutChart({
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0)
     return (
-      <p className="text-slate-500 italic text-center py-16">Chưa có dữ liệu</p>
+      <p className="text-slate-500 italic text-center py-16">{t('noData')}</p>
     );
 
   const cx = 100, cy = 100, r = 70, ir = 45;
@@ -69,7 +69,7 @@ function DonutChart({
           />
         ))}
         <text x={cx} y={cy - 8} textAnchor="middle" fill="#fff" fontSize="22" fontWeight="bold">{total}</text>
-        <text x={cx} y={cy + 14} textAnchor="middle" fill="#94a3b8" fontSize="10">Tổng máy</text>
+        <text x={cx} y={cy + 14} textAnchor="middle" fill="#94a3b8" fontSize="10">{t('totalMachinesLabel')}</text>
       </svg>
       <div className="space-y-3 flex-1 min-w-0">
         {data.map((d) => (
@@ -171,7 +171,7 @@ function VBarChart({
   unit?: string;
 }) {
   if (!data || data.length === 0)
-    return <p className="text-slate-500 italic text-center py-8">Chưa có dữ liệu</p>;
+    return <p className="text-slate-500 italic text-center py-8">{t('noData')}</p>;
   const max = Math.max(...data.map((d) => d[dataKey]), 1);
 
   return (
@@ -206,8 +206,8 @@ type EfficiencyPoint = { log_date: string; efficiency: number };
 function EfficiencyLineChart({ data }: { data: EfficiencyPoint[] }) {
   if (data.length === 0)
     return (
-      <div className="flex items-center justify-center h-40 text-slate-500 italic text-sm">
-        Chưa có dữ liệu lịch sử. Dữ liệu sẽ được ghi nhận tự động mỗi khi Dashboard tải.
+      <div className="flex items-center justify-center h-40 text-slate-500 italic text-sm text-center px-10">
+        {t('noHistoryData')}
       </div>
     );
 
@@ -360,7 +360,7 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
       .map((m) => ({
         label: m.id,
         value: m.moldsRunning,
-        sub: `${m.name} — ${m.loadPercentage}% tải`,
+        sub: `${m.name} — ${m.loadPercentage}% ${t('loadLabel')}`,
       }));
 
     // Capacity groups
@@ -373,14 +373,14 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
     const capacityData = Object.entries(capacityGroups)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([cap, data]) => ({
-        name: `${cap} Khuôn`,
+        name: `${cap} ${t('molds')}`,
         efficiency: data.total > 0 ? Math.round((data.running / data.total) * 100) : 0,
       }));
 
     const statusData = [
-      { name: t('optimal') || 'Tối ưu', value: optimal.length, ids: optimal.map((m) => m.id), color: '#10b981' },
-      { name: t('warning') || 'Cảnh báo', value: warning.length, ids: warning.map((m) => m.id), color: '#f59e0b' },
-      { name: t('underutilized') || 'Chưa tối ưu', value: underutilized.length, ids: underutilized.map((m) => m.id), color: '#f43f5e' },
+      { name: t('optimal'), value: optimal.length, ids: optimal.map((m) => m.id), color: '#10b981' },
+      { name: t('warning'), value: warning.length, ids: warning.map((m) => m.id), color: '#f59e0b' },
+      { name: t('underutilized'), value: underutilized.length, ids: underutilized.map((m) => m.id), color: '#f43f5e' },
     ];
 
     return {
@@ -424,12 +424,12 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                 <TrendingDown className="w-6 h-6 text-indigo-400" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">Thống Kê Hiệu Suất Tải</h2>
+                <h2 className="text-xl font-bold text-white tracking-tight">{t('loadPerformanceStats')}</h2>
                 <p className="text-sm text-slate-400">
-                  Phân tích thời gian thực —{' '}
-                  <span className="text-indigo-400 font-bold">{machines.length} máy</span>,{' '}
-                  <span className="text-emerald-400 font-bold">{stats.runningMachines.length} máy đang chạy</span>,{' '}
-                  <span className="text-violet-400 font-bold">{stats.allMoldsRunning.length} loại khuôn</span>
+                  {t('realtimeAnalysis')} —{' '}
+                  <span className="text-indigo-400 font-bold">{machines.length} {t('machinesUnit')}</span>,{' '}
+                  <span className="text-emerald-400 font-bold">{stats.runningMachines.length} {t('machinesRunningCount')}</span>,{' '}
+                  <span className="text-violet-400 font-bold">{stats.allMoldsRunning.length} {t('moldTypesCount')}</span>
                 </p>
               </div>
             </div>
@@ -448,20 +448,20 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
             <div className="mb-6 bg-slate-800/40 p-6 rounded-2xl border border-indigo-500/20">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4" /> Lịch sử hiệu suất tải theo ngày (30 ngày gần nhất)
+                  <BarChart2 className="w-4 h-4" /> {t('efficiencyHistory30d')}
                 </h3>
                 {efficiencyHistory.length > 0 && (
                   <div className="flex items-center gap-4 text-xs text-slate-400">
-                    <span>Thấp nhất: <strong className="text-rose-400">{Math.min(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
-                    <span>Cao nhất: <strong className="text-emerald-400">{Math.max(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
-                    <span>Hôm nay: <strong className="text-indigo-300">{efficiencyHistory[efficiencyHistory.length - 1]?.efficiency ?? '—'}%</strong></span>
+                    <span>{t('lowest')}: <strong className="text-rose-400">{Math.min(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
+                    <span>{t('highest')}: <strong className="text-emerald-400">{Math.max(...efficiencyHistory.map(d => d.efficiency))}%</strong></span>
+                    <span>{t('todayLabel')}: <strong className="text-indigo-300">{efficiencyHistory[efficiencyHistory.length - 1]?.efficiency ?? '—'}%</strong></span>
                   </div>
                 )}
               </div>
               {historyLoading ? (
                 <div className="flex items-center justify-center h-40 gap-3 text-slate-400">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" />
-                  Đang tải lịch sử...
+                  {t('loadingHistory')}
                 </div>
               ) : (
                 <EfficiencyLineChart data={efficiencyHistory} />
@@ -473,7 +473,7 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
               {/* 1. Status Distribution Donut */}
               <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700/30">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-                  <Target className="w-4 h-4" /> Trạng thái công suất máy
+                  <Target className="w-4 h-4" /> {t('machineCapacityStatus')}
                 </h3>
                 <DonutChart
                   data={stats.statusData}
@@ -488,7 +488,7 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                     className="mt-4 p-3 bg-slate-900/60 rounded-xl border border-slate-700/40"
                   >
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">
-                      Danh sách máy — {activeSegment}:
+                      {t('machineListTitle')} — {activeSegment}:
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {stats.statusData
@@ -510,16 +510,16 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
               <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700/30">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
                   <Layers className="w-4 h-4 text-violet-400" />
-                  <span>Khuôn đang chạy</span>
+                  <span>{t('runningMoldsTitle')}</span>
                   <span className="ml-auto bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                    {stats.allMoldsRunning.length} loại
+                    {stats.allMoldsRunning.length} {t('typeUnit')}
                   </span>
                 </h3>
                 <StatsTable
                   rows={stats.allMoldsRunning}
-                  col1Label="Mã khuôn"
-                  col2Label="Số lượng"
-                  emptyText="Chưa có khuôn nào đang chạy"
+                  col1Label={t('moldId')}
+                  col2Label={t('quantity')}
+                  emptyText={t('noMolds')}
                   col1Color="#a78bfa"
                 />
               </div>
@@ -528,16 +528,16 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
               <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700/30">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
                   <Cpu className="w-4 h-4 text-emerald-400" />
-                  <span>Máy đang hoạt động</span>
+                  <span>{t('machinesActiveTitle')}</span>
                   <span className="ml-auto bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                    {stats.runningMachines.length}/{machines.length} máy
+                    {stats.runningMachines.length}/{machines.length} {t('machinesUnit')}
                   </span>
                 </h3>
                 <StatsTable
                   rows={stats.runningMachines}
-                  col1Label="Máy"
-                  col2Label="Khuôn đang chạy"
-                  emptyText="Không có máy nào đang hoạt động"
+                  col1Label={t('selectedMachine')}
+                  col2Label={t('runningMolds')}
+                  emptyText={t('noMolds')}
                   col1Color="#34d399"
                 />
               </div>
@@ -545,7 +545,7 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
               {/* 4. Efficiency by Capacity */}
               <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700/30">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4" /> Hiệu suất theo nhóm công suất máy
+                  <TrendingDown className="w-4 h-4" /> {t('efficiencyByCapacityGroup')}
                 </h3>
                 <VBarChart
                   data={stats.capacityData}
@@ -562,10 +562,10 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
             {stats.underloadedMachines.length > 0 && (
               <div className="mt-6 bg-slate-800/40 p-6 rounded-2xl border border-rose-500/20">
                 <h3 className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                  <Info className="w-4 h-4" /> Máy đang dưới tải (dưới 30%)
+                  <Info className="w-4 h-4" /> {t('underloadedAlert')}
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
-                  {stats.underloadedMachines.length} máy cần xem xét phân bổ khuôn thêm
+                  {stats.underloadedMachines.length} {t('underloadedHint')}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                   {stats.underloadedMachines.map((m) => (
@@ -586,7 +586,7 @@ export function AnalyticsModal({ isOpen, onClose, machines }: AnalyticsModalProp
                           style={{ width: `${m.loadPercentage}%` }}
                         />
                       </div>
-                      <p className="text-[10px] text-slate-500">{m.moldsRunning}/{m.maxMolds} khuôn</p>
+                      <p className="text-[10px] text-slate-500">{m.moldsRunning}/{m.maxMolds} {t('molds').toLowerCase()}</p>
                     </div>
                   ))}
                 </div>

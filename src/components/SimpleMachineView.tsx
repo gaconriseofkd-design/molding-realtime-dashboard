@@ -47,7 +47,7 @@ export function SimpleMachineView({ machines, onMachineClick, onStatusChange }: 
               {machine.id}
             </span>
             <span className="text-xl font-black leading-none py-1">
-              {machine.operationalStatus === 'active' ? `${machine.loadPercentage}%` : 'OFF'}
+              {machine.operationalStatus === 'active' ? `${machine.loadPercentage}%` : t('offLabel')}
             </span>
             <div className="flex items-center gap-1 mt-1" title={t('status')}>
                <span className={`w-1.5 h-1.5 rounded-full ${getDotColor(machine)} ${machine.operationalStatus === 'active' ? 'animate-pulse' : ''}`} />
