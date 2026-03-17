@@ -38,6 +38,10 @@ export function LiveDashboard() {
   // Analytics Modal State
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
 
+  // Operational status change state
+  const [statusChangeTarget, setStatusChangeTarget] = useState<Machine | null>(null);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+
   useEffect(() => {
     fetchData();
 
@@ -99,6 +103,7 @@ export function LiveDashboard() {
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
         const maxMolds = getMachineCapacity(m.id);
         const loadPercentage = Math.round((moldsCount / maxMolds) * 100) || 0;
+        const operationalStatus: 'active' | 'stop' | 'pause' = m.operational_status ?? 'active';
 
         let status: 'optimal' | 'warning' | 'underutilized' = 'underutilized';
         if (loadPercentage >= 80) status = 'optimal';
@@ -108,8 +113,9 @@ export function LiveDashboard() {
           id: m.id,
           name: m.name,
           status,
+          operationalStatus,
           loadPercentage,
-          maxMolds, // Overwriting with dynamic capacity logic per request
+          maxMolds,
           moldsRunning: moldsCount,
           molds: moldsRunningOnThisMachine
         };
@@ -117,9 +123,10 @@ export function LiveDashboard() {
 
       setMachines(transformedMachines);
 
-      // Compute Global Stats
-      const totalMoldsRunning = transformedMachines.reduce((sum, m) => sum + m.moldsRunning, 0);
-      const totalMoldsCapacity = transformedMachines.reduce((sum, m) => sum + m.maxMolds, 0);
+      // Compute Global Stats — only ACTIVE machines count toward efficiency
+      const activeMachines = transformedMachines.filter(m => m.operationalStatus === 'active');
+      const totalMoldsRunning = activeMachines.reduce((sum, m) => sum + m.moldsRunning, 0);
+      const totalMoldsCapacity = activeMachines.reduce((sum, m) => sum + m.maxMolds, 0);
       const totalCapacityUtilization = Math.round((totalMoldsRunning / totalMoldsCapacity) * 100) || 0;
 
       setStats({
@@ -147,6 +154,22 @@ export function LiveDashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOperationalStatusChange = async (machine: Machine, newStatus: 'active' | 'stop' | 'pause') => {
+    setIsChangingStatus(true);
+    try {
+      await supabase
+        .from('machines')
+        .update({ operational_status: newStatus })
+        .eq('id', machine.id);
+      setStatusChangeTarget(null);
+      await fetchData();
+    } catch (err) {
+      console.error('Failed to update operational status:', err);
+    } finally {
+      setIsChangingStatus(false);
     }
   };
 
@@ -394,7 +417,11 @@ export function LiveDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <MachineList machines={filteredMachines} onMachineClick={handleEditMachine} />
+            <MachineList
+              machines={filteredMachines}
+              onMachineClick={handleEditMachine}
+              onStatusChange={(machine) => setStatusChangeTarget(machine)}
+            />
             
             {/* Add Machine "Plus" Card */}
             <motion.button
@@ -421,6 +448,64 @@ export function LiveDashboard() {
           </div>
         )}
       </main>
+
+      {/* Operational Status Change Popover */}
+      <AnimatePresence>
+        {statusChangeTarget && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setStatusChangeTarget(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+            >
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 w-72 pointer-events-auto">
+                <h3 className="text-base font-bold text-white mb-1">{statusChangeTarget.id}</h3>
+                <p className="text-xs text-slate-400 mb-5">Chọn trạng thái hoạt động của máy</p>
+                <div className="space-y-2">
+                  {(['active', 'pause', 'stop'] as const).map((s) => {
+                    const cfgMap = {
+                      active: { label: 'Đang hoạt động (Active)', color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' },
+                      pause: { label: 'Tạm ngưng (Pause)', color: 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' },
+                      stop: { label: 'Ngưng hoạt động (Stop)', color: 'border-rose-500/50 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20' },
+                    };
+                    const cfg = cfgMap[s];
+                    const isCurrent = statusChangeTarget.operationalStatus === s;
+                    return (
+                      <button
+                        key={s}
+                        disabled={isChangingStatus}
+                        onClick={() => handleOperationalStatusChange(statusChangeTarget, s)}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border font-semibold text-sm transition-all
+                          ${cfg.color}
+                          ${isCurrent ? 'ring-2 ring-offset-1 ring-offset-slate-800' : ''}
+                          disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <span>{cfg.label}</span>
+                        {isCurrent && <span className="text-xs font-bold uppercase tracking-wider opacity-70">Hiện tại</span>}
+                        {isChangingStatus && !isCurrent && <></>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setStatusChangeTarget(null)}
+                  className="mt-4 w-full py-2 rounded-xl border border-slate-600 text-slate-400 text-sm hover:text-white hover:border-slate-500 transition-colors"
+                >
+                  Hủy
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Add Machine Modal */}
       <AnimatePresence>

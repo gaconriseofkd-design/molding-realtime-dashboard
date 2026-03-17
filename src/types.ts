@@ -12,6 +12,7 @@ export interface Machine {
   maxMolds: number;
   loadPercentage: number;
   status: 'optimal' | 'warning' | 'underutilized';
+  operationalStatus: 'active' | 'stop' | 'pause';
   molds: Mold[];
 }
 
