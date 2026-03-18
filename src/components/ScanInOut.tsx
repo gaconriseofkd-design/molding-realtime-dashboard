@@ -60,13 +60,7 @@ export function ScanInOut() {
     const savedRecents = localStorage.getItem('recent_molds');
     if (savedRecents) setRecentMolds(JSON.parse(savedRecents));
 
-    // Khởi tạo camera lần đầu
-    const timeoutId = setTimeout(() => {
-      startScanner();
-    }, 1000); // Tăng lên 1s để chắc chắn dữ liệu Meta đã về kịp
-
     return () => {
-      clearTimeout(timeoutId);
       stopScanner();
     };
   }, []);
