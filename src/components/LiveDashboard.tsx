@@ -100,7 +100,8 @@ export function LiveDashboard() {
             id: r.mold_id,
             name: r.mold_id,
             size: r.mold_size,
-            qty: r.quantity
+            qty: r.quantity,
+            updatedAt: r.updated_at
           }));
 
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
@@ -186,7 +187,8 @@ export function LiveDashboard() {
           Load: `${m.loadPercentage}%`,
           Mold: 'None',
           Size: '-',
-          Quantity: 0
+          Quantity: 0,
+          'Update Time': '-'
         }];
       }
       return m.molds.map(mold => ({
@@ -196,7 +198,8 @@ export function LiveDashboard() {
         Load: `${m.loadPercentage}%`,
         Mold: mold.id,
         Size: mold.size,
-        Quantity: mold.qty
+        Quantity: mold.qty,
+        'Update Time': mold.updatedAt ? new Date(mold.updatedAt).toLocaleString('vi-VN') : '-'
       }));
     });
 
@@ -206,7 +209,7 @@ export function LiveDashboard() {
     
     // Auto-size columns
     const colWidths = [
-      { wch: 10 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }
+      { wch: 10 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }
     ];
     ws['!cols'] = colWidths;
 

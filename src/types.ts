@@ -3,6 +3,7 @@ export interface Mold {
   name: string;
   size: string;
   qty: number;
+  updatedAt?: string;
 }
 
 export interface Machine {
