@@ -283,7 +283,8 @@ export function ScanInOut() {
             machine_id: selectedMachineId,
             mold_id: selectedMoldId,
             mold_size: selectedSize,
-            quantity: newQty
+            quantity: newQty,
+            scanned_in_at: new Date().toISOString()
           }, { onConflict: 'machine_id, mold_id, mold_size' });
 
         if (error) throw error;
@@ -304,7 +305,10 @@ export function ScanInOut() {
         } else {
           const { error } = await supabase
             .from('running_molds')
-            .update({ quantity: newQty })
+            .update({ 
+              quantity: newQty,
+              scanned_in_at: new Date().toISOString() 
+            })
             .eq('uuid', existing.uuid);
           if (error) throw error;
         }

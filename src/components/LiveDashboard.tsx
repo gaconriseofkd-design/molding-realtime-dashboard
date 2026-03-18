@@ -101,7 +101,7 @@ export function LiveDashboard() {
             name: r.mold_id,
             size: r.mold_size,
             qty: r.quantity,
-            updatedAt: r.updated_at
+            updatedAt: r.scanned_in_at
           }));
 
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
@@ -279,7 +279,8 @@ export function LiveDashboard() {
               machine_id: selectedMachine.id,
               mold_id: m.id,
               mold_size: m.size,
-              quantity: m.qty
+              quantity: m.qty,
+              scanned_in_at: new Date().toISOString()
             }, { onConflict: 'machine_id, mold_id, mold_size' });
           } else if (m.qty === 0 && orig) {
             await supabase.from('running_molds')
