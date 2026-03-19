@@ -57,7 +57,8 @@ export function MoldDatabase() {
       const { data: masterData, error: masterError } = await supabase
         .from('mold_master')
         .select('*')
-        .order('id', { ascending: true });
+        .order('id', { ascending: true })
+        .range(0, 5000); // Increase limit from default 1000
 
       if (masterError) throw masterError;
 
