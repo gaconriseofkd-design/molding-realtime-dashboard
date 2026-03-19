@@ -32,6 +32,15 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
 
   const isInactive = machine.operationalStatus !== 'active';
 
+  const getMaxMoldsClass = (maxMolds: number) => {
+    switch (maxMolds) {
+      case 12: return 'text-sky-400 font-black bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20 shadow-sm';
+      case 24: return 'text-amber-400 font-black bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shadow-sm';
+      case 32: return 'text-purple-400 font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20 shadow-sm';
+      default: return 'text-slate-200 font-bold bg-slate-700/50 px-1.5 py-0.5 rounded';
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -85,10 +94,13 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
       <div className="mb-6">
         <div className="flex justify-between items-end mb-2">
           <span className="text-sm font-semibold text-slate-300 uppercase tracking-wider">{t('capacityLoad')}</span>
-          <span className="text-sm text-slate-400 font-mono">
-            <strong className={`${machine.moldsRunning > machine.maxMolds ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+          <span className="text-sm text-slate-400 font-mono flex items-center gap-1.5">
+            <strong className={`${machine.moldsRunning > machine.maxMolds ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
               {machine.moldsRunning}
-            </strong> / {machine.maxMolds} {t('molds')}
+            </strong> / 
+            <span className={getMaxMoldsClass(machine.maxMolds)}>
+              {machine.maxMolds} {t('molds')}
+            </span>
           </span>
         </div>
         <div className="h-2 w-full bg-slate-700/50 rounded-full overflow-hidden">
