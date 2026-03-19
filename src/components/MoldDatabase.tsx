@@ -35,30 +35,43 @@ export function MoldDatabase() {
   };
 
   useEffect(() => {
-    fetchMolds();
-
     // Subscribe to both tables to keep data fresh
     const channel = supabase
       .channel('mold_db_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mold_master' }, () => fetchMolds())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'running_molds' }, () => fetchMolds())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mold_master' }, () => fetchMolds(searchTerm))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'running_molds' }, () => fetchMolds(searchTerm))
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [searchTerm]);
 
-  const fetchMolds = async () => {
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchMolds(searchTerm);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const fetchMolds = async (search?: string) => {
     try {
       setIsLoading(true);
       
       // 1. Fetch master data
-      const { data: masterData, error: masterError } = await supabase
+      let query = supabase
         .from('mold_master')
-        .select('*')
+        .select('*');
+      
+      if (search) {
+        query = query.ilike('id', `%${search.trim()}%`);
+      }
+
+      const { data: masterData, error: masterError } = await query
         .order('id', { ascending: true })
-        .range(0, 5000); // Increase limit from default 1000
+        .range(0, 1000); // PostgREST has default limit of 1000, filtering handles the rest
 
       if (masterError) throw masterError;
 
@@ -236,7 +249,9 @@ export function MoldDatabase() {
     setIsModalOpen(true);
   };
 
-  const filteredMolds = molds.filter(mold => mold.id.toLowerCase().includes(searchTerm.toLowerCase()));
+  // With server-side search active, we don't need to filter again on client
+  // except maybe a quick pass if data is stale, but better to use fetched data as-is.
+  const filteredMolds = molds;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
