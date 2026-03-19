@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
-import { Plus, X, Server, Pencil, Trash2, Upload, Download, Loader2, Search } from 'lucide-react';
+import { Plus, X, Server, Pencil, Trash2, Upload, Download, Loader2, Search, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import type { MoldMaster } from '../types';
@@ -10,10 +10,25 @@ export function MoldDatabase() {
   const { t } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [molds, setMolds] = useState<MoldMaster[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // don't load immediately if not authenticated
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === 'admin') {
+      setIsAuthenticated(true);
+      fetchMolds(searchTerm);
+    } else {
+      setPasswordError(true);
+      setTimeout(() => setPasswordError(false), 2000);
+    }
+  };
 
   // Modal State
   const [editingMold, setEditingMold] = useState<MoldMaster | null>(null);
@@ -35,6 +50,7 @@ export function MoldDatabase() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     // Subscribe to both tables to keep data fresh
     const channel = supabase
       .channel('mold_db_changes')
@@ -45,16 +61,17 @@ export function MoldDatabase() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [searchTerm]);
+  }, [searchTerm, isAuthenticated]);
 
   // Debounced search effect
   useEffect(() => {
+    if (!isAuthenticated) return;
     const timer = setTimeout(() => {
       fetchMolds(searchTerm);
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, isAuthenticated]);
 
   const fetchMolds = async (search?: string) => {
     try {
@@ -252,6 +269,59 @@ export function MoldDatabase() {
   // With server-side search active, we don't need to filter again on client
   // except maybe a quick pass if data is stale, but better to use fetched data as-is.
   const filteredMolds = molds;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] animate-in fade-in duration-500">
+        <div className="bg-slate-800/80 backdrop-blur-md p-8 rounded-3xl border border-slate-700/50 shadow-2xl max-w-sm w-full">
+          <div className="flex flex-col items-center gap-4 mb-8">
+            <div className="w-16 h-16 bg-rose-500/20 rounded-2xl flex items-center justify-center border border-rose-500/30">
+              <Lock className="w-8 h-8 text-rose-400" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white">{t('moldDatabase')}</h2>
+              <p className="text-slate-400 text-sm mt-1">{t('passwordRequired')}</p>
+            </div>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t('enterPassword')}
+                className={`w-full bg-slate-900 border rounded-xl px-4 py-3 text-white focus:outline-none transition-all text-center tracking-[0.5em] font-mono ${
+                  passwordError 
+                    ? 'border-rose-500 focus:ring-rose-500 animate-shake ring-2 ring-rose-500/50' 
+                    : 'border-slate-700 focus:ring-2 focus:ring-indigo-500'
+                }`}
+                autoFocus
+              />
+              {passwordError && (
+                <p className="text-rose-400 text-xs text-center font-bold">{t('incorrectPassword')}</p>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95"
+            >
+              Cấp quyền Truy cập
+            </button>
+          </form>
+        </div>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+          }
+          .animate-shake { animation: shake 0.4s ease-in-out; }
+        `}} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

@@ -31,7 +31,7 @@ export function MachineDatabase() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '0364592629') {
+    if (password === 'admin') {
       setIsAuthenticated(true);
     } else {
       setPasswordError(true);
