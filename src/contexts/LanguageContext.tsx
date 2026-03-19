@@ -30,6 +30,7 @@ const translations: Translations = {
   liveDashboard: { en: 'Live Dashboard', vi: 'Dashboard Trực tiếp' },
   scanInOut: { en: 'Scan In/Out (Mobile)', vi: 'Scan Vào/Ra (Mobile)' },
   moldDatabase: { en: 'Mold Database', vi: 'Dữ liệu Khuôn' },
+  machineDatabase: { en: 'Machine Database', vi: 'Dữ liệu Máy' },
   // Filters
   searchPlaceholder: { en: 'Search Machine or Mold ID...', vi: 'Tìm kiếm Máy hoặc Mã Khuôn...' },
   status: { en: 'Status', vi: 'Trạng thái' },
@@ -87,6 +88,12 @@ const translations: Translations = {
   // Add machine
   addNewMachine: { en: 'Add New Machine', vi: 'Thêm Máy Mới' },
   addMachineHint: { en: 'Auto-number & set capacity', vi: 'Dễ dàng đánh số & thiết lập công suất' },
+  machineName: { en: 'Machine Name', vi: 'Tên Máy' },
+  maxCapacity: { en: 'Max Capacity', vi: 'Công suất tải tối đa' },
+  editMachine: { en: 'Edit Machine', vi: 'Chỉnh sửa Máy' },
+  enterPassword: { en: 'Enter Password', vi: 'Nhập mật khẩu' },
+  passwordRequired: { en: 'Password Required', vi: 'Yêu cầu Mật khẩu' },
+  incorrectPassword: { en: 'Incorrect password!', vi: 'Sai mật khẩu!' },
   viewMode: { en: 'View Mode', vi: 'Chế độ xem' },
   simpleView: { en: 'Simple View', vi: 'Xem Tổng Quan' },
   gridView: { en: 'Grid View', vi: 'Xem Chi Tiết' },

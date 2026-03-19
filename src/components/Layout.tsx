@@ -1,6 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LayoutDashboard, ScanBarcode, Database, Globe } from 'lucide-react';
+import { LayoutDashboard, ScanBarcode, Database, Server, Globe } from 'lucide-react';
 
 export function Layout() {
   const { language, setLanguage, t } = useLanguage();
@@ -9,6 +9,7 @@ export function Layout() {
     { to: '/', icon: LayoutDashboard, label: t('liveDashboard') },
     { to: '/scan', icon: ScanBarcode, label: t('scanInOut') },
     { to: '/database', icon: Database, label: t('moldDatabase') },
+    { to: '/machines', icon: Server, label: t('machineDatabase') },
   ];
 
   return (
