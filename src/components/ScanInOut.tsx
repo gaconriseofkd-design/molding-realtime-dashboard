@@ -233,6 +233,19 @@ export function ScanInOut() {
       const machineRes = await supabase.from('machines').select('max_molds, operational_status, name').eq('id', selectedMachineId).single();
       const runningRes = await supabase.from('running_molds').select('mold_id, mold_size, quantity, uuid').eq('machine_id', selectedMachineId);
 
+      const moldMasterRes = await supabase
+        .from('mold_master')
+        .select('total_owned')
+        .eq('id', selectedMoldId)
+        .eq('size', selectedSize)
+        .single();
+
+      const allRunningForMoldRes = await supabase
+        .from('running_molds')
+        .select('quantity')
+        .eq('mold_id', selectedMoldId)
+        .eq('mold_size', selectedSize);
+
       if (machineRes.error) throw machineRes.error;
       if (runningRes.error) throw runningRes.error;
 
@@ -268,6 +281,26 @@ export function ScanInOut() {
           alert(`${t('errCapacityExceeded').replace('{max}', maxMolds.toString())}\n(${t('total').toUpperCase()}: ${currentTotal} + ${scanQty} = ${newProposedTotal})`);
           setIsSubmitting(false);
           return;
+        }
+
+        // RULE 3: Cannot exceed overall total_owned across all machines
+        // Only run this check if the mold exists in mold_master
+        if (moldMasterRes.data) {
+          const totalOwned = moldMasterRes.data.total_owned || 0;
+          const totalCurrentlyRunning = (allRunningForMoldRes.data || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+          
+          if (totalCurrentlyRunning + scanQty > totalOwned) {
+            const warningMsg = t('errMoldQtyExceeded')
+              .replace('{mold}', selectedMoldId)
+              .replace('{size}', selectedSize)
+              .replace('{owned}', totalOwned.toString())
+              .replace('{running}', totalCurrentlyRunning.toString())
+              .replace('{scanQty}', scanQty.toString());
+              
+            alert(warningMsg);
+            setIsSubmitting(false);
+            return;
+          }
         }
 
         const newQty = (existing?.quantity || 0) + scanQty;

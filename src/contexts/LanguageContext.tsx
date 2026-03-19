@@ -130,6 +130,10 @@ const translations: Translations = {
   errMachineInactive: { en: 'Machine is not active (Stopped or Paused). Operations not allowed.', vi: 'Máy không ở trạng thái hoạt động (Đang ngưng hoặc Tạm dừng). Không thể thực hiện thao tác.' },
   curMoldsOnMachine: { en: 'Current molds on machine', vi: 'Số khuôn đang có trên máy' },
   remCapacity: { en: 'Remaining capacity', vi: 'Số khuôn tối đa còn lại' },
+  errMoldQtyExceeded: { 
+    en: 'WARNING: Quantity of Mold {mold} ({size}) exceeds stock limit!\n\nOwned (Master): {owned}\nCurrently running: {running}\nScanning in: {scanQty}\n\nPlease check again or update the Mold Database.', 
+    vi: 'CẢNH BÁO: Số lượng khuôn {mold} ({size}) vượt quá dữ liệu hiện có!\n\nThuộc tính Master: có {owned} khuôn\nĐang chạy trên máy: {running} khuôn\nSố khuôn đang scan vào: {scanQty}\n\nVui lòng kiểm tra lại hoặc cập nhật số lượng mới trong Dữ liệu khuôn.' 
+  },
 };
 
 interface LanguageContextType {
