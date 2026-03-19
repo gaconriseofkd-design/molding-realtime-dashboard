@@ -86,11 +86,22 @@ export function LiveDashboard() {
       if (mError) throw mError;
 
       // 2. Fetch all running molds
-      const { data: runningData, error: rError } = await supabase
-        .from('running_molds')
-        .select('*');
-
-      if (rError) throw rError;
+      let allRunningData: any[] = [];
+      let rPage = 0;
+      const rPageSize = 1000;
+      while (true) {
+        const { data: pageData, error: rError } = await supabase
+          .from('running_molds')
+          .select('*')
+          .range(rPage * rPageSize, (rPage + 1) * rPageSize - 1);
+        
+        if (rError) throw rError;
+        if (!pageData || pageData.length === 0) break;
+        allRunningData = [...allRunningData, ...pageData];
+        if (pageData.length < rPageSize) break;
+        rPage++;
+      }
+      const runningData = allRunningData;
 
       // 3. Transform and Compute
       const transformedMachines: Machine[] = machinesData.map(m => {

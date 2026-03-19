@@ -67,15 +67,29 @@ export function ScanInOut() {
 
   const fetchMeta = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name, max_molds, operational_status').order('id');
-    const { data: moData } = await supabase.from('mold_master').select('id, size').order('id');
     if (mData) {
       setMachines(mData);
       machinesRef.current = mData;
     }
-    if (moData) {
-      setMolds(moData);
-      moldsRef.current = moData;
+
+    let allMoldsData: {id: string, size: string}[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('mold_master')
+        .select('id, size')
+        .order('id')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error || !data || data.length === 0) break;
+      allMoldsData = [...allMoldsData, ...data];
+      if (data.length < pageSize) break;
+      page++;
     }
+
+    setMolds(allMoldsData);
+    moldsRef.current = allMoldsData;
   };
 
   const fetchMachineCapacity = async (machineId: string) => {
