@@ -12,7 +12,7 @@ export function ScanInOut() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   
   const [machines, setMachines] = useState<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
-  const [molds, setMolds] = useState<{id: string, size: string}[]>([]);
+  const [molds, setMolds] = useState<{id: string, size: string, total_owned: number}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
@@ -21,12 +21,13 @@ export function ScanInOut() {
   const [isSearchingMold, setIsSearchingMold] = useState(false);
   const [recentMolds, setRecentMolds] = useState<string[]>([]);
   const [machineCapacity, setMachineCapacity] = useState<{current: number, max: number} | null>(null);
+  const [moldSizeStats, setMoldSizeStats] = useState<Record<string, { owned: number, running: number }>>({});
   
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
   const selectedMoldRef = useRef('');
   const machinesRef = useRef<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
-  const moldsRef = useRef<{id: string, size: string}[]>([]);
+  const moldsRef = useRef<{id: string, size: string, total_owned: number}[]>([]);
 
   useEffect(() => {
     selectedMachineRef.current = selectedMachineId;
@@ -39,7 +40,33 @@ export function ScanInOut() {
 
   useEffect(() => {
     selectedMoldRef.current = selectedMoldId;
-  }, [selectedMoldId]);
+    async function fetchStats() {
+      if (!selectedMoldId) {
+        setMoldSizeStats({});
+        return;
+      }
+      const stats: Record<string, { owned: number, running: number }> = {};
+      const targetMolds = molds.filter(m => m.id === selectedMoldId);
+      
+      targetMolds.forEach(m => {
+        stats[m.size] = { owned: m.total_owned || 0, running: 0 };
+      });
+
+      const { data } = await supabase
+        .from('running_molds')
+        .select('mold_size, quantity')
+        .eq('mold_id', selectedMoldId);
+
+      data?.forEach(r => {
+        if (stats[r.mold_size]) {
+          stats[r.mold_size].running += (r.quantity || 0);
+        }
+      });
+
+      setMoldSizeStats(stats);
+    }
+    fetchStats();
+  }, [selectedMoldId, molds]);
 
   useEffect(() => {
     machinesRef.current = machines;
@@ -72,13 +99,13 @@ export function ScanInOut() {
       machinesRef.current = mData;
     }
 
-    let allMoldsData: {id: string, size: string}[] = [];
+    let allMoldsData: {id: string, size: string, total_owned: number}[] = [];
     let page = 0;
     const pageSize = 1000;
     while (true) {
       const { data, error } = await supabase
         .from('mold_master')
-        .select('id, size')
+        .select('id, size, total_owned')
         .order('id')
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
@@ -357,6 +384,17 @@ export function ScanInOut() {
 
       setShowSuccess(true);
       if (selectedMachineId) fetchMachineCapacity(selectedMachineId); // Refresh UI capacity
+      
+      // Update local size stats to immediately reflect the scan action in the x/y label
+      setMoldSizeStats(prev => {
+        const updated = { ...prev };
+        if (updated[selectedSize]) {
+           if (scanType === 'IN') updated[selectedSize].running += scanQty;
+           else updated[selectedSize].running -= scanQty;
+        }
+        return updated;
+      });
+
       setTimeout(() => setShowSuccess(false), 2000);
       setQty(1);
     } catch (error: any) {
@@ -616,24 +654,35 @@ export function ScanInOut() {
             </div>
           )}
 
-          {/* Size Choice Grid (if multiple sizes) */}
-          {selectedMoldId && availableSizes.length > 1 && (
+          {/* Size Choice Grid */}
+          {selectedMoldId && availableSizes.length > 0 && (
             <div className="flex flex-col gap-2 pt-2 border-t border-slate-700/30">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-14">{t('selectMoldSize')}</p>
               <div className="flex flex-wrap gap-2 pl-14">
-                {availableSizes.map((size: string) => (
+                {availableSizes.map((size: string) => {
+                  const stat = moldSizeStats[size];
+                  const y = stat?.owned || 0;
+                  const x = stat ? Math.max(0, y - stat.running) : 0;
+                  const isSelected = selectedSize === size;
+                  
+                  return (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                      selectedSize === size
-                        ? 'bg-indigo-500 text-white border-indigo-400 shadow-lg'
-                        : 'bg-slate-700/50 text-slate-300 border-slate-600 hover:border-slate-500'
+                    className={`relative px-4 py-2 pt-5 rounded-xl text-xs font-bold transition-all border overflow-hidden flex flex-col items-center justify-center ${
+                      isSelected
+                        ? 'bg-indigo-500 text-white border-indigo-400 shadow-lg ring-2 ring-indigo-400/50 scale-105'
+                        : 'bg-slate-700/50 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                   >
+                    <span className={`absolute top-1 right-1 text-[9px] font-black px-1.5 py-0.5 rounded leading-none ${
+                        isSelected ? 'bg-black/30 text-white' : 'bg-slate-900/50 text-emerald-400 border border-emerald-500/20'
+                    }`}>
+                      {x}/{y}
+                    </span>
                     {size}
                   </button>
-                ))}
+                )})}
               </div>
             </div>
           )}
