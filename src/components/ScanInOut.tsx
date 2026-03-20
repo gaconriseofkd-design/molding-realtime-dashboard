@@ -255,6 +255,14 @@ export function ScanInOut() {
     return molds.filter(m => m.id === selectedMoldId).map(m => m.size);
   }, [molds, selectedMoldId]);
 
+  const availableQty = useMemo(() => {
+    if (!selectedSize || !moldSizeStats[selectedSize]) return Infinity;
+    const stat = moldSizeStats[selectedSize];
+    return Math.max(0, stat.owned - stat.running);
+  }, [selectedSize, moldSizeStats]);
+
+  const isExceeding = scanType === 'IN' && selectedSize && qty > availableQty;
+
   const handleSubmit = async () => {
     if (!selectedMachineId) {
       setValidationError(t('scanMachineFirst'));
@@ -715,23 +723,43 @@ export function ScanInOut() {
           </button>
         </div>
 
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between shadow-inner">
-          <span className="text-slate-400 font-bold uppercase tracking-wider">{t('quantity')}</span>
-          <div className="flex items-center gap-6">
-            <button 
-              onClick={() => setQty(Math.max(1, qty - 1))}
-              className="w-14 h-14 bg-slate-700 rounded-2xl flex items-center justify-center hover:bg-slate-600 active:scale-90 transition-all shadow-md group"
-            >
-              <Minus className="w-6 h-6 text-white group-active:scale-125 transition-transform" />
-            </button>
-            <span className="text-4xl font-black min-w-[3ch] text-center text-white tabular-nums">{qty}</span>
-            <button 
-              onClick={() => setQty(qty + 1)}
-              className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center hover:bg-indigo-400 active:scale-90 transition-all shadow-[0_0_15px_rgba(99,102,241,0.4)] group"
-            >
-              <Plus className="w-6 h-6 text-white group-active:scale-125 transition-transform" />
-            </button>
+        <div className={`bg-slate-800/50 border rounded-2xl p-4 shadow-inner transition-colors ${
+          isExceeding ? 'border-rose-500/50 ring-1 ring-rose-500/30' : 'border-slate-700/50'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400 font-bold uppercase tracking-wider">{t('quantity')}</span>
+            <div className="flex items-center gap-6">
+              <button 
+                onClick={() => setQty(Math.max(1, qty - 1))}
+                className="w-14 h-14 bg-slate-700 rounded-2xl flex items-center justify-center hover:bg-slate-600 active:scale-90 transition-all shadow-md group border border-slate-600"
+              >
+                <Minus className="w-6 h-6 text-white group-active:scale-125 transition-transform" />
+              </button>
+              <span className={`text-4xl font-black min-w-[3ch] text-center tabular-nums transition-colors ${
+                isExceeding ? 'text-rose-500' : 'text-white'
+              }`}>{qty}</span>
+              <button 
+                onClick={() => setQty(qty + 1)}
+                className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center hover:bg-indigo-400 active:scale-90 transition-all shadow-[0_0_15px_rgba(99,102,241,0.4)] group border border-indigo-400"
+              >
+                <Plus className="w-6 h-6 text-white group-active:scale-125 transition-transform" />
+              </button>
+            </div>
           </div>
+          
+          <AnimatePresence>
+            {isExceeding && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                className="flex items-center gap-2 text-rose-400 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20"
+              >
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span className="text-xs font-bold leading-tight">Số lượng vượt quá khuôn thực tế đang trống ({availableQty})</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
