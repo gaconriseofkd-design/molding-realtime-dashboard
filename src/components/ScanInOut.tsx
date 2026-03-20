@@ -22,7 +22,10 @@ export function ScanInOut() {
   const [recentMolds, setRecentMolds] = useState<string[]>([]);
   const [machineCapacity, setMachineCapacity] = useState<{current: number, max: number} | null>(null);
   const [moldSizeStats, setMoldSizeStats] = useState<Record<string, { owned: number, running: number }>>({});
-  
+  const [runningMoldsOnMachine, setRunningMoldsOnMachine] = useState<any[]>([]);
+  const [isAdvancedScanOut, setIsAdvancedScanOut] = useState(false);
+  const [advancedScanMode, setAdvancedScanMode] = useState<'100' | 'LIST'>('100');
+  const [selectedScanOutItems, setSelectedScanOutItems] = useState<Record<string, boolean>>({});  
   // Refs to allow camera callback to access latest state without stale closures
   const selectedMachineRef = useRef('');
   const selectedMoldRef = useRef('');
@@ -122,10 +125,13 @@ export function ScanInOut() {
   const fetchMachineCapacity = async (machineId: string) => {
     if (!machineId) {
       setMachineCapacity(null);
+      setRunningMoldsOnMachine([]);
       return;
     }
     const { data: machine } = await supabase.from('machines').select('max_molds').eq('id', machineId).single();
-    const { data: running } = await supabase.from('running_molds').select('quantity').eq('machine_id', machineId);
+    const { data: running } = await supabase.from('running_molds').select('*').eq('machine_id', machineId);
+    
+    setRunningMoldsOnMachine(running || []);
     
     const current = running?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
     const max = machine?.max_molds || 12;
@@ -268,6 +274,41 @@ export function ScanInOut() {
       setValidationError(t('scanMachineFirst'));
       return;
     }
+
+    if (scanType === 'OUT' && isAdvancedScanOut) {
+      try {
+        setIsSubmitting(true);
+        if (advancedScanMode === '100') {
+           const uuids = runningMoldsOnMachine.map(r => r.uuid);
+           if (!uuids.length) {
+              alert('Không có khuôn nào đang chạy trên máy này!');
+              setIsSubmitting(false);
+              return;
+           }
+           const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
+           if (error) throw error;
+        } else if (advancedScanMode === 'LIST') {
+           const uuids = Object.keys(selectedScanOutItems).filter(k => selectedScanOutItems[k]);
+           if (!uuids.length) {
+              alert('Vui lòng chọn ít nhất 1 khuôn/size để scan out!');
+              setIsSubmitting(false);
+              return;
+           }
+           const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
+           if (error) throw error;
+        }
+        setShowSuccess(true);
+        fetchMachineCapacity(selectedMachineId);
+        setSelectedScanOutItems({});
+        setTimeout(() => setShowSuccess(false), 2000);
+      } catch (e: any) {
+        alert(t('scanError') + ': ' + e.message);
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (!selectedMoldId) {
       alert(t('selectMold'));
       return;
@@ -422,8 +463,53 @@ export function ScanInOut() {
 
   const moldResults = Array.isArray(filteredMolds) ? filteredMolds : [];
 
+  const groupedRunningMolds = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    runningMoldsOnMachine.forEach(r => {
+      if (!map[r.mold_id]) map[r.mold_id] = [];
+      map[r.mold_id].push(r);
+    });
+    return map;
+  }, [runningMoldsOnMachine]);
+
+  const toggleGroupSelection = (moldId: string) => {
+    const items = groupedRunningMolds[moldId] || [];
+    const allSelected = items.every(i => selectedScanOutItems[i.uuid]);
+    const nextState = { ...selectedScanOutItems };
+    items.forEach(i => {
+      nextState[i.uuid] = !allSelected;
+    });
+    setSelectedScanOutItems(nextState);
+  };
+
   return (
     <div className="max-w-md mx-auto h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-20 sm:pb-0">
+
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => {
+            setScanType('IN');
+            setIsAdvancedScanOut(false);
+          }}
+          className={`py-4 rounded-2xl font-black text-lg transition-all active:scale-95 ${
+            scanType === 'IN' 
+              ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900' 
+              : 'bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-500'
+          }`}
+        >
+          {t('scanIn')}
+        </button>
+        <button
+          onClick={() => setScanType('OUT')}
+          className={`py-4 rounded-2xl font-black text-lg transition-all active:scale-95 ${
+            scanType === 'OUT' 
+              ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.3)] ring-2 ring-rose-400 ring-offset-2 ring-offset-slate-900' 
+              : 'bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-500'
+          }`}
+        >
+          {t('scanOut')}
+        </button>
+      </div>
       
       {/* Scanner Viewport */}
       <div className="relative w-full aspect-video sm:aspect-square bg-black rounded-3xl overflow-hidden border-4 border-slate-700/50 shadow-2xl flex items-center justify-center">
@@ -548,6 +634,86 @@ export function ScanInOut() {
 
         <div className="h-px w-full bg-slate-700/50"></div>
 
+        {scanType === 'OUT' && selectedMachineId && (
+          <div className="flex flex-col gap-3 py-2">
+            <label className="flex items-center gap-3 text-white font-bold cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                className="w-5 h-5 rounded border-rose-500 bg-slate-900 accent-rose-500 focus:ring-rose-500/50" 
+                checked={isAdvancedScanOut} 
+                onChange={e => setIsAdvancedScanOut(e.target.checked)} 
+              />
+              Scan out tùy chọn
+            </label>
+            
+            {isAdvancedScanOut && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setAdvancedScanMode('100')} 
+                  className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all border ${
+                    advancedScanMode === '100' ? 'bg-indigo-500 text-white border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  Nhanh 100%
+                </button>
+                <button 
+                  onClick={() => setAdvancedScanMode('LIST')} 
+                  className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all border ${
+                    advancedScanMode === 'LIST' ? 'bg-indigo-500 text-white border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  Theo List
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {scanType === 'OUT' && isAdvancedScanOut ? (
+          advancedScanMode === 'LIST' && (
+            <div className="flex flex-col gap-3 max-h-64 overflow-y-auto scrollbar-hide pr-1">
+              {Object.keys(groupedRunningMolds).length === 0 ? (
+                <div className="text-slate-400 text-center italic text-sm py-4">Không có khuôn nào đang chạy trên máy này</div>
+              ) : (
+                Object.keys(groupedRunningMolds).map(moldId => {
+                  const items = groupedRunningMolds[moldId];
+                  const allSelected = items.every(i => selectedScanOutItems[i.uuid]);
+                  
+                  return (
+                    <div key={moldId} className="bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50">
+                      <div 
+                        className="bg-slate-700/30 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-slate-700/50 transition-colors"
+                        onClick={() => toggleGroupSelection(moldId)}
+                      >
+                        <span className="font-black text-white">{moldId}</span>
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${allSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-500'}`}>
+                          {allSelected && <CheckCircle2 className="w-3 h-3" />}
+                        </div>
+                      </div>
+                      <div className="p-2 flex flex-wrap gap-2">
+                        {items.map(i => (
+                          <div 
+                            key={i.uuid} 
+                            onClick={() => setSelectedScanOutItems(p => ({...p, [i.uuid]: !p[i.uuid]}))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer select-none flex items-center gap-2 ${
+                              selectedScanOutItems[i.uuid] 
+                                ? 'bg-indigo-500 text-white border-indigo-400 shadow-md transform scale-105' 
+                                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+                            }`}
+                          >
+                            <span>{i.mold_size}</span>
+                            <span className="bg-black/30 px-1.5 py-0.5 rounded-md text-[9px] text-emerald-300">Qty: {i.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )
+        ) : (
+          <>
         {/* Mold Selection - Enhanced with Search and Recents */}
         <div className={`flex flex-col gap-3 transition-opacity duration-300 ${!selectedMachineId ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
           <div className="flex items-center gap-4">
@@ -695,37 +861,16 @@ export function ScanInOut() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Scan Actions & Quantity */}
-      <div className={`space-y-4 transition-opacity ${!selectedMachineId || !selectedMoldId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => setScanType('IN')}
-            className={`py-4 rounded-2xl font-black text-lg transition-all active:scale-95 ${
-              scanType === 'IN' 
-                ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900' 
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
-            }`}
-          >
-            {t('scanIn')}
-          </button>
-          
-          <button
-            onClick={() => setScanType('OUT')}
-            className={`py-4 rounded-2xl font-black text-lg transition-all active:scale-95 ${
-              scanType === 'OUT' 
-                ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.3)] ring-2 ring-rose-400 ring-offset-2 ring-offset-slate-900' 
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
-            }`}
-          >
-            {t('scanOut')}
-          </button>
-        </div>
-
-        <div className={`bg-slate-800/50 border rounded-2xl p-4 shadow-inner transition-colors ${
-          isExceeding ? 'border-rose-500/50 ring-1 ring-rose-500/30' : 'border-slate-700/50'
-        }`}>
+      {(!isAdvancedScanOut || scanType === 'IN') && (
+        <div className={`space-y-4 transition-opacity ${!selectedMachineId || !selectedMoldId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+          <div className={`bg-slate-800/50 border rounded-2xl p-4 shadow-inner transition-colors ${
+            isExceeding ? 'border-rose-500/50 ring-1 ring-rose-500/30' : 'border-slate-700/50'
+          }`}>
           <div className="flex items-center justify-between">
             <span className="text-slate-400 font-bold uppercase tracking-wider">{t('quantity')}</span>
             <div className="flex items-center gap-6">
@@ -761,15 +906,16 @@ export function ScanInOut() {
             )}
           </AnimatePresence>
         </div>
-      </div>
+        </div>
+      )}
 
       <button 
         onClick={handleSubmit}
-        disabled={isSubmitting || showSuccess || !selectedMachineId || !selectedMoldId || !selectedSize}
+        disabled={isSubmitting || showSuccess || !selectedMachineId || (!isAdvancedScanOut && (!selectedMoldId || !selectedSize))}
         className={`w-full relative mt-auto py-6 rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden ${
           showSuccess 
             ? 'bg-emerald-500 text-white' 
-            : !selectedMachineId || !selectedMoldId || !selectedSize
+            : (!selectedMachineId || (!isAdvancedScanOut && (!selectedMoldId || !selectedSize)))
               ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
               : 'bg-slate-100 hover:bg-white text-slate-900'
         }`}
