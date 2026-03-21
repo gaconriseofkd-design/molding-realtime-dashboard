@@ -5,6 +5,7 @@ export interface Mold {
   qty: number;
   updatedAt?: string;
   statusNote?: 'material_out' | 'broken_mold';
+  uuid?: string;
 }
 
 export interface Machine {

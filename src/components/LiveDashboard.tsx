@@ -116,7 +116,8 @@ export function LiveDashboard() {
             size: r.mold_size,
             qty: r.quantity,
             updatedAt: r.scanned_in_at,
-            statusNote: r.status_note
+            statusNote: r.status_note,
+            uuid: r.uuid
           }));
 
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);

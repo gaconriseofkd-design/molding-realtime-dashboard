@@ -44,17 +44,26 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
   const updateStatus = async (status: 'material_out' | 'broken_mold' | null) => {
     setIsUpdating(true);
     try {
-      const { error } = await supabase
-        .from('running_molds')
-        .update({ status_note: status })
-        .match({ machine_id: machineId, mold_id: mold.id, mold_size: mold.size });
+      let query = supabase.from('running_molds').update({ status_note: status });
+      
+      if (mold.uuid) {
+        query = query.eq('uuid', mold.uuid);
+      } else {
+        query = query.match({ 
+          machine_id: machineId, 
+          mold_id: mold.id, 
+          mold_size: mold.size 
+        });
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
       if (onStatusUpdate) onStatusUpdate();
       setShowStatusMenu(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update status:', err);
-      alert('Lỗi cập nhật trạng thái');
+      alert('Lỗi cập nhật trạng thái: ' + (err.message || 'Lỗi không xác định'));
     } finally {
       setIsUpdating(false);
     }
