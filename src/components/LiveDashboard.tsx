@@ -1,7 +1,7 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
@@ -679,8 +679,7 @@ export function LiveDashboard() {
               <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
                 <div>
                   <h2 className="text-xl font-bold text-white tracking-wider uppercase">{selectedMachine.id}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-sm text-slate-400">{t('editMolds') || 'Edit Running Molds'}</p>
+                  <div className="flex items-center gap-1 font-mono text-xs" title={t('qty')}>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
                       editingMolds.reduce((s, m) => s + (m.qty || 0), 0) > selectedMachine.maxMolds
                         ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
@@ -716,6 +715,25 @@ export function LiveDashboard() {
                         <span className="font-bold text-white">{mold.name}</span>
                         <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-xs font-mono border border-indigo-500/20">{mold.size}</span>
                       </div>
+                      
+                      {mold.updatedAt && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400/80 bg-amber-500/5 px-2 py-1 rounded-lg border border-amber-500/10 w-fit">
+                          <Clock className="w-3 h-3" />
+                          <span>{(() => {
+                            const start = new Date(mold.updatedAt).getTime();
+                            const now = new Date().getTime();
+                            const diffMs = now - start;
+                            if (diffMs < 0) return '0m';
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMins / 60);
+                            const diffDays = Math.floor(diffHours / 24);
+                            if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h`;
+                            if (diffHours > 0) return `${diffHours}h ${diffMins % 60}m`;
+                            return `${diffMins}m`;
+                          })()}</span>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-slate-400 text-sm">{t('quantity') || 'Quantity'}:</span>
                         <div className="flex items-center gap-3">

@@ -1,4 +1,5 @@
-import { Package } from 'lucide-react';
+import { Package, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import type { Mold } from '../types';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -9,6 +10,38 @@ interface MoldChipProps {
 
 export function MoldChip({ mold }: MoldChipProps) {
   const { t } = useLanguage();
+  const [duration, setDuration] = useState<string>('');
+
+  useEffect(() => {
+    const calculateDuration = () => {
+      if (!mold.updatedAt) return '--';
+      const start = new Date(mold.updatedAt).getTime();
+      const now = new Date().getTime();
+      const diffMs = now - start;
+      
+      if (diffMs < 0) return '0m';
+
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffDays > 0) {
+        return `${diffDays}d ${diffHours % 24}h`;
+      }
+      if (diffHours > 0) {
+        return `${diffHours}h ${diffMins % 60}m`;
+      }
+      return `${diffMins}m`;
+    };
+
+    setDuration(calculateDuration());
+    const timer = setInterval(() => {
+      setDuration(calculateDuration());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(timer);
+  }, [mold.updatedAt]);
+
   return (
     <div 
       className="inline-flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 shadow-sm hover:border-slate-600 transition-colors"
@@ -24,8 +57,7 @@ export function MoldChip({ mold }: MoldChipProps) {
       
       <div className="h-3 w-px bg-slate-600"></div>
       
-      <div className="flex items-center gap-1 font-mono text-xs">
-        <span className="text-slate-500">{t('qty')}:</span>
+      <div className="flex items-center gap-1 font-mono text-xs" title={t('qty')}>
         <motion.span 
           animate={{ scale: [1, 1.1, 1] }}
           transition={{ 
@@ -38,6 +70,13 @@ export function MoldChip({ mold }: MoldChipProps) {
         >
           {mold.qty}
         </motion.span>
+      </div>
+
+      <div className="h-3 w-px bg-slate-600"></div>
+
+      <div className="flex items-center gap-1 font-mono text-[10px]" title={mold.updatedAt ? new Date(mold.updatedAt).toLocaleString('vi-VN') : ''}>
+        <Clock className="w-3 h-3 text-amber-400/80" />
+        <span className="text-amber-200/90 font-bold whitespace-nowrap">{duration}</span>
       </div>
     </div>
   );
