@@ -64,14 +64,52 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
         return;
       }
 
-      // Transform data for Excel
-      const excelData = allLogs.map(log => {
+      // Transform data for Excel with Session Load logic
+      const logsByMachine: Record<string, any[]> = {};
+      allLogs.forEach(log => {
+        if (!logsByMachine[log.machine_id]) logsByMachine[log.machine_id] = [];
+        logsByMachine[log.machine_id].push(log);
+      });
+
+      const processedLogs: any[] = [];
+      const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
+
+      Object.keys(logsByMachine).forEach(machineId => {
+        const machineLogs = logsByMachine[machineId].sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        if (machineLogs.length === 0) return;
+
+        let currentSession: any[] = [machineLogs[0]];
+        
+        for (let i = 1; i <= machineLogs.length; i++) {
+          const log = machineLogs[i];
+          const prevLog = machineLogs[i-1];
+          
+          const isNewSession = !log || (new Date(log.created_at).getTime() - new Date(prevLog.created_at).getTime() > SESSION_GAP_MS);
+          
+          if (isNewSession) {
+            const finalLoad = currentSession[currentSession.length - 1].load_percentage;
+            currentSession.forEach(sLog => {
+              processedLogs.push({ ...sLog, session_load: finalLoad });
+            });
+            if (log) currentSession = [log];
+          } else {
+            currentSession.push(log);
+          }
+        }
+      });
+
+      processedLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const excelData = processedLogs.map(log => {
         const date = new Date(log.created_at);
         const timeStr = date.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US');
         
         return {
           'Machine': log.machine_id,
-          'Load': log.load_percentage ? `${log.load_percentage}%` : '-',
+          'Load': log.session_load ? `${log.session_load}%` : (log.load_percentage ? `${log.load_percentage}%` : '-'),
           'Mold ID': log.mold_id,
           'Size': log.mold_size,
           'Quantity': log.quantity,
