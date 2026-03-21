@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
-import { Server, Pencil, X, Plus, Loader2, Search, Lock } from 'lucide-react';
+import { Server, Pencil, X, Plus, Loader2, Search, Lock, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function MachineDatabase() {
@@ -62,6 +62,38 @@ export function MachineDatabase() {
     setMachineName(m.name || '');
     setMaxMolds(m.max_molds || 12);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    // 1. Check if there are molds on this machine
+    const { data: running } = await supabase
+      .from('running_molds')
+      .select('uuid')
+      .eq('machine_id', id)
+      .limit(1);
+    
+    if (running && running.length > 0) {
+      alert(t('errMachineHasRunningMolds'));
+      return;
+    }
+
+    if (!confirm(t('confirmDeleteMachine'))) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('machines')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      fetchMachines();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error deleting machine: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -233,6 +265,13 @@ export function MachineDatabase() {
                       title={t('editMachine')}
                     >
                       <Pencil className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(m.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-700 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ml-1"
+                      title={t('delete')}
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>

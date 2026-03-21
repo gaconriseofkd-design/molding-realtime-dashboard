@@ -148,6 +148,9 @@ const translations: Translations = {
   noLogsFound: { en: 'No scan logs found for the selected period.', vi: 'Không tìm thấy lịch sử scan trong khoảng ngày đã chọn.' },
   shiftNormal: { en: 'Normal Shift', vi: 'Ca Thường' },
   shift247: { en: '24/7 Shift', vi: 'Ca 24/7' },
+  delete: { en: 'Delete', vi: 'Xóa' },
+  confirmDeleteMachine: { en: 'Are you sure you want to delete this machine? This action cannot be undone.', vi: 'Bạn có chắc chắn muốn xóa máy này không? Hành động này không thể hoàn tác.' },
+  errMachineHasRunningMolds: { en: 'Cannot delete machine because it has molds currently running on it.', vi: 'Không thể xóa máy vì hiện đang có khuôn chạy trên máy này.' },
 };
 
 interface LanguageContextType {
