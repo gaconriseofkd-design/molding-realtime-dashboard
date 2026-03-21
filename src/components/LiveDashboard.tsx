@@ -1,11 +1,10 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock, FileText } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
-import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsModal } from './AnalyticsModal';
 import { HistoryReportModal } from './HistoryReportModal';
@@ -192,44 +191,6 @@ export function LiveDashboard() {
     }
   };
 
-  const handleExportExcel = () => {
-    const exportData = machines.flatMap(m => {
-      if (m.molds.length === 0) {
-        return [{
-          Machine: m.id,
-          Name: m.name,
-          Status: m.status,
-          Load: `${m.loadPercentage}%`,
-          Mold: 'None',
-          Size: '-',
-          Quantity: 0,
-          'Update Time': '-'
-        }];
-      }
-      return m.molds.map(mold => ({
-        Machine: m.id,
-        Name: m.name,
-        Status: m.status,
-        Load: `${m.loadPercentage}%`,
-        Mold: mold.id,
-        Size: mold.size,
-        Quantity: mold.qty,
-        'Update Time': mold.updatedAt ? new Date(mold.updatedAt).toLocaleString('vi-VN') : '-'
-      }));
-    });
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Live Status");
-    
-    // Auto-size columns
-    const colWidths = [
-      { wch: 10 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }
-    ];
-    ws['!cols'] = colWidths;
-
-    XLSX.writeFile(wb, `Molding_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
 
   const filteredMachines = machines
     .filter(machine => {
@@ -385,13 +346,6 @@ export function LiveDashboard() {
                 <span className="w-2 h-8 bg-indigo-500 rounded-full block"></span>
                 {t('liveMachineStatus')}
               </h2>
-              <button
-                onClick={handleExportExcel}
-                className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-emerald-500/5"
-              >
-                <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
-                {t('exportExcel')}
-              </button>
 
               <button
                 onClick={() => setShowHistoryReport(true)}
