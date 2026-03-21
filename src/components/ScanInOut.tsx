@@ -285,8 +285,18 @@ export function ScanInOut() {
               setIsSubmitting(false);
               return;
            }
-           const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
-           if (error) throw error;
+            const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
+            if (error) throw error;
+            
+            // Log history for all molds on machine
+            const logs = runningMoldsOnMachine.map(r => ({
+              machine_id: selectedMachineId,
+              mold_id: r.mold_id,
+              mold_size: r.mold_size,
+              quantity: r.quantity,
+              action_type: 'OUT'
+            }));
+            await supabase.from('scan_logs').insert(logs);
         } else if (advancedScanMode === 'LIST') {
            const uuids = Object.keys(selectedScanOutItems).filter(k => selectedScanOutItems[k]);
            if (!uuids.length) {
@@ -294,8 +304,19 @@ export function ScanInOut() {
               setIsSubmitting(false);
               return;
            }
-           const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
-           if (error) throw error;
+            const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
+            if (error) throw error;
+            
+            // Log history for selected items
+            const selectedItems = runningMoldsOnMachine.filter(r => selectedScanOutItems[r.uuid]);
+            const logs = selectedItems.map(r => ({
+              machine_id: selectedMachineId,
+              mold_id: r.mold_id,
+              mold_size: r.mold_size,
+              quantity: r.quantity,
+              action_type: 'OUT'
+            }));
+            await supabase.from('scan_logs').insert(logs);
         }
         setShowSuccess(true);
         fetchMachineCapacity(selectedMachineId);
@@ -405,6 +426,15 @@ export function ScanInOut() {
           }, { onConflict: 'machine_id, mold_id, mold_size' });
 
         if (error) throw error;
+
+        // Log history
+        await supabase.from('scan_logs').insert({
+          machine_id: selectedMachineId,
+          mold_id: selectedMoldId,
+          mold_size: selectedSize,
+          quantity: scanQty,
+          action_type: 'IN'
+        });
       } else {
         // SCAN OUT
         if (!existing) {
@@ -419,16 +449,16 @@ export function ScanInOut() {
             .delete()
             .eq('uuid', existing.uuid);
           if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('running_molds')
-            .update({ 
-              quantity: newQty,
-              scanned_in_at: new Date().toISOString() 
-            })
-            .eq('uuid', existing.uuid);
-          if (error) throw error;
         }
+
+        // Log history
+        await supabase.from('scan_logs').insert({
+          machine_id: selectedMachineId,
+          mold_id: selectedMoldId,
+          mold_size: selectedSize,
+          quantity: scanQty,
+          action_type: 'OUT'
+        });
       }
 
       setShowSuccess(true);

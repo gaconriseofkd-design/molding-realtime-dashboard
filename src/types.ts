@@ -31,3 +31,14 @@ export interface DashboardStats {
   totalMoldsRunning: number;
   totalMoldsCapacity: number;
 }
+
+export interface ScanLog {
+  id: number;
+  created_at: string;
+  machine_id: string;
+  mold_id: string;
+  mold_size: string;
+  quantity: number;
+  action_type: 'IN' | 'OUT';
+  operator_name?: string;
+}

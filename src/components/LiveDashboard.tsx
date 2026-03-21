@@ -1,13 +1,14 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, Download, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnalyticsModal } from './AnalyticsModal';
+import { HistoryReportModal } from './HistoryReportModal';
 import { SimpleMachineView } from './SimpleMachineView';
 
 export function LiveDashboard() {
@@ -36,7 +37,10 @@ export function LiveDashboard() {
   const [isAddingMachine, setIsAddingMachine] = useState(false);
 
   // Analytics Modal State
-  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
+  // History Report Modal State
+  const [showHistoryReport, setShowHistoryReport] = useState(false);
 
   // View mode state: grid (default) or simple (matrix)
   const [viewMode, setViewMode] = useState<'grid' | 'simple'>('grid');
@@ -293,10 +297,31 @@ export function LiveDashboard() {
               quantity: m.qty,
               scanned_in_at: new Date().toISOString()
             }, { onConflict: 'machine_id, mold_id, mold_size' });
+
+            // Log history Delta
+            const delta = m.qty - (orig?.qty || 0);
+            if (delta !== 0) {
+              await supabase.from('scan_logs').insert({
+                machine_id: selectedMachine.id,
+                mold_id: m.id,
+                mold_size: m.size,
+                quantity: Math.abs(delta),
+                action_type: delta > 0 ? 'IN' : 'OUT'
+              });
+            }
           } else if (m.qty === 0 && orig) {
             await supabase.from('running_molds')
               .delete()
               .match({ machine_id: selectedMachine.id, mold_id: m.id, mold_size: m.size });
+
+            // Log history
+            await supabase.from('scan_logs').insert({
+              machine_id: selectedMachine.id,
+              mold_id: m.id,
+              mold_size: m.size,
+              quantity: orig.qty,
+              action_type: 'OUT'
+            });
           }
         }
       }
@@ -365,11 +390,20 @@ export function LiveDashboard() {
                 <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
                 {t('exportExcel')}
               </button>
+
               <button
-                onClick={() => setIsAnalyticsModalOpen(true)}
+                onClick={() => setShowHistoryReport(true)}
                 className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-indigo-500/5"
               >
-                <BarChartIcon className="w-4 h-4" />
+                <FileText className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                {t('historyReport')}
+              </button>
+
+              <button
+                onClick={() => setShowAnalytics(true)}
+                className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400/50"
+              >
+                <BarChartIcon className="w-4 h-4 group-hover:rotate-12 transition-transform" />
                 {t('analyticsBtn')}
               </button>
             </div>
@@ -786,10 +820,18 @@ export function LiveDashboard() {
 
       {/* Analytics Visualization Modal */}
       <AnalyticsModal 
-        isOpen={isAnalyticsModalOpen}
-        onClose={() => setIsAnalyticsModalOpen(false)}
+        isOpen={showAnalytics}
+        onClose={() => setShowAnalytics(false)}
         machines={machines}
       />
+
+      {/* History Report Modal */}
+      {showHistoryReport && (
+        <HistoryReportModal 
+          isOpen={showHistoryReport} 
+          onClose={() => setShowHistoryReport(false)} 
+        />
+      )}
     </div>
   );
 }

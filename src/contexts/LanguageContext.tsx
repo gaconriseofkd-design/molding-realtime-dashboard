@@ -141,6 +141,13 @@ const translations: Translations = {
     en: 'WARNING: Quantity of Mold {mold} ({size}) exceeds stock limit!\n\nOwned (Master): {owned}\nCurrently running: {running}\nScanning in: {scanQty}\n\nPlease check again or update the Mold Database.', 
     vi: 'CẢNH BÁO: Số lượng khuôn {mold} ({size}) vượt quá dữ liệu hiện có!\n\nThuộc tính Master: có {owned} khuôn\nĐang chạy trên máy: {running} khuôn\nSố khuôn đang scan vào: {scanQty}\n\nVui lòng kiểm tra lại hoặc cập nhật số lượng mới trong Dữ liệu khuôn.' 
   },
+  historyReport: { en: 'History Report', vi: 'Báo cáo Lịch sử' },
+  startDate: { en: 'Start Date', vi: 'Từ ngày' },
+  endDate: { en: 'End Date', vi: 'Đến ngày' },
+  downloadReport: { en: 'Download Excel Report', vi: 'Tải Báo cáo Excel' },
+  noLogsFound: { en: 'No scan logs found for the selected period.', vi: 'Không tìm thấy lịch sử scan trong khoảng ngày đã chọn.' },
+  shiftNormal: { en: 'Normal Shift', vi: 'Ca Thường' },
+  shift247: { en: '24/7 Shift', vi: 'Ca 24/7' },
 };
 
 interface LanguageContextType {
