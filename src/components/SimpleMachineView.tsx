@@ -12,6 +12,10 @@ export function SimpleMachineView({ machines, onMachineClick, onStatusChange }: 
   const { t } = useLanguage();
 
   const getStatusColor = (machine: Machine) => {
+    // Priority 1: Mold status alerts
+    const hasAlert = machine.molds.some(m => !!m.statusNote);
+    if (hasAlert) return 'bg-rose-500/30 border-rose-500 text-rose-200 shadow-[0_0_15px_rgba(244,63,94,0.4)] animate-pulse-red';
+
     if (machine.operationalStatus === 'stop') return 'bg-rose-500/20 border-rose-500/50 text-rose-400';
     if (machine.operationalStatus === 'pause') return 'bg-amber-500/20 border-amber-500/50 text-amber-400';
     
