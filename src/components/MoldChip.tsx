@@ -66,8 +66,9 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
     <div className="relative">
       <div 
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
-          setShowStatusMenu(!showStatusMenu);
+          setShowStatusMenu(true);
         }}
         className={`inline-flex items-center gap-2 bg-slate-800 border rounded-md px-3 py-1.5 shadow-sm hover:bg-slate-700 transition-all cursor-pointer select-none
           ${hasStatus ? 'animate-pulse-mold border-rose-500/50' : 'border-slate-700'}`}
@@ -116,48 +117,81 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
 
       <AnimatePresence>
         {showStatusMenu && (
-          <>
-            <div className="fixed inset-0 z-[100]" onClick={() => setShowStatusMenu(false)}></div>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={(e) => { e.stopPropagation(); setShowStatusMenu(false); }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="absolute bottom-full left-0 mb-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[101] overflow-hidden p-1"
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-[320px] bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden p-3"
             >
-              <div className="flex items-center justify-between p-2 mb-1 border-b border-slate-800">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Trạng thái khuôn</span>
-                <button onClick={() => setShowStatusMenu(false)} className="text-slate-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>
+              <div className="flex flex-col items-center p-4 mb-4 border-b border-slate-800 text-center">
+                <div className="bg-indigo-500/10 p-3 rounded-2xl mb-3">
+                  <Package className="w-6 h-6 text-indigo-400" />
+                </div>
+                <h4 className="text-base font-black text-white">{mold.name}</h4>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">
+                  Size: {mold.size} | Máy: {machineId}
+                </p>
+                <button 
+                  onClick={() => setShowStatusMenu(false)} 
+                  className="absolute top-4 right-4 p-2 text-slate-500 hover:text-white hover:bg-slate-800 rounded-full transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                disabled={isUpdating}
-                onClick={(e) => { e.stopPropagation(); updateStatus('material_out'); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left
-                  ${mold.statusNote === 'material_out' ? 'bg-rose-500/20 text-rose-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                Hết liệu
-              </button>
-              <button
-                disabled={isUpdating}
-                onClick={(e) => { e.stopPropagation(); updateStatus('broken_mold'); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left
-                  ${mold.statusNote === 'broken_mold' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-              >
-                <Hammer className="w-4 h-4" />
-                Khuôn hư
-              </button>
-              {hasStatus && (
+
+              <div className="space-y-2">
                 <button
                   disabled={isUpdating}
-                  onClick={(e) => { e.stopPropagation(); updateStatus(null); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition-all border-t border-slate-800 mt-1"
+                  onClick={(e) => { e.stopPropagation(); updateStatus('material_out'); }}
+                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-black transition-all text-left
+                    ${mold.statusNote === 'material_out' 
+                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/50'}`}
                 >
-                  <CheckCircle className="w-4 h-4" />
-                  Xóa ghi chú (OK)
+                  <div className={`p-2 rounded-lg ${mold.statusNote === 'material_out' ? 'bg-white/20' : 'bg-rose-500/10'}`}>
+                    <AlertTriangle className={`w-5 h-5 ${mold.statusNote === 'material_out' ? 'text-white' : 'text-rose-500'}`} />
+                  </div>
+                  Hết liệu
                 </button>
-              )}
+
+                <button
+                  disabled={isUpdating}
+                  onClick={(e) => { e.stopPropagation(); updateStatus('broken_mold'); }}
+                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-black transition-all text-left
+                    ${mold.statusNote === 'broken_mold' 
+                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' 
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/50'}`}
+                >
+                  <div className={`p-2 rounded-lg ${mold.statusNote === 'broken_mold' ? 'bg-white/20' : 'bg-amber-500/10'}`}>
+                    <Hammer className={`w-5 h-5 ${mold.statusNote === 'broken_mold' ? 'text-white' : 'text-amber-500'}`} />
+                  </div>
+                  Khuôn hư
+                </button>
+
+                {hasStatus && (
+                  <button
+                    disabled={isUpdating}
+                    onClick={(e) => { e.stopPropagation(); updateStatus(null); }}
+                    className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-black text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all mt-4"
+                  >
+                    <div className="p-2 rounded-lg bg-emerald-500/20">
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    Xóa ghi chú (Đã xử lý xong)
+                  </button>
+                )}
+              </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
     </div>
