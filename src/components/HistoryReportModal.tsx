@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Download, Loader2, FileText, Clock } from 'lucide-react';
+import { X, Calendar, Download, Loader2, FileText, Check } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { useLanguage } from '../contexts/LanguageContext';
 import * as XLSX from 'xlsx';
@@ -10,11 +10,21 @@ interface HistoryReportModalProps {
   onClose: () => void;
 }
 
+type ShiftType = 'normal' | '247';
+
+const SHIFT_OPTIONS = {
+  normal: ['Ca 1', 'Ca 2', 'Ca 3'],
+  '247': ['Ca 1', 'Ca 2']
+};
+
 export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps) {
   const { t, language } = useLanguage();
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [isExporting, setIsExporting] = useState(false);
+  
+  const [shiftType, setShiftType] = useState<ShiftType>('normal');
+  const [selectedShifts, setSelectedShifts] = useState<string[]>([]); // Empty means ALL
 
   const calculateNormalShift = (date: Date): string => {
     const hours = date.getHours();
@@ -29,25 +39,35 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
     return 'Ca 2';
   };
 
+  const toggleShift = (shift: string) => {
+    setSelectedShifts(prev => 
+      prev.includes(shift) ? prev.filter(s => s !== shift) : [...prev, shift]
+    );
+  };
+
   const handleDownload = async () => {
     try {
       setIsExporting(true);
       
+      // PRODUCTION DAY LOGIC: 06:00 today to 06:00 next day (Local Time)
+      const start = new Date(`${startDate}T06:00:00`);
+      const startIso = start.toISOString();
+
+      const end = new Date(`${endDate}T06:00:00`);
+      end.setDate(end.getDate() + 1);
+      const endIso = end.toISOString();
+
       // Fetch data from scan_logs
       let allLogs: any[] = [];
       let page = 0;
       const pageSize = 1000;
       
-      // Format dates to cover full day (from 00:00:00 of start to 23:59:59 of end)
-      const startIso = `${startDate}T00:00:00.000Z`;
-      const endIso = `${endDate}T23:59:59.999Z`;
-
       while (true) {
         const { data, error } = await supabase
           .from('scan_logs')
           .select('*')
           .gte('created_at', startIso)
-          .lte('created_at', endIso)
+          .lt('created_at', endIso) // Use less than to exclude exactly 06:00 of next day
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -59,14 +79,24 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
         page++;
       }
 
-      if (allLogs.length === 0) {
+      // Filter by selected shifts in frontend
+      let filteredLogs = allLogs;
+      if (selectedShifts.length > 0) {
+        filteredLogs = allLogs.filter(log => {
+          const date = new Date(log.created_at);
+          const s = shiftType === 'normal' ? calculateNormalShift(date) : calculate247Shift(date);
+          return selectedShifts.includes(s);
+        });
+      }
+
+      if (filteredLogs.length === 0) {
         alert(t('noLogsFound'));
         return;
       }
 
       // Transform data for Excel with Session Load logic
       const logsByMachine: Record<string, any[]> = {};
-      allLogs.forEach(log => {
+      filteredLogs.forEach(log => {
         if (!logsByMachine[log.machine_id]) logsByMachine[log.machine_id] = [];
         logsByMachine[log.machine_id].push(log);
       });
@@ -124,7 +154,6 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Scan History");
       
-      // Auto-size columns
       const colWidths = [
         { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 25 }
       ];
@@ -199,21 +228,60 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
               </div>
             </div>
 
-            <div className="bg-slate-900/40 p-4 rounded-2xl border border-slate-700/50 space-y-3">
-              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                <Clock className="w-3 h-3" /> Shift Rules
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-[11px]">
-                <div className="space-y-1">
-                  <p className="font-bold text-indigo-400 underline">{t('shiftNormal')}</p>
-                  <p className="text-slate-400">C1: 06:00 - 14:00</p>
-                  <p className="text-slate-400">C2: 14:00 - 22:00</p>
-                  <p className="text-slate-400">C3: 22:00 - 06:00</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Chọn Loại Ca</label>
+                <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700">
+                  <button 
+                    onClick={() => { setShiftType('normal'); setSelectedShifts([]); }}
+                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${shiftType === 'normal' ? 'bg-indigo-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Ca Thường
+                  </button>
+                  <button 
+                    onClick={() => { setShiftType('247'); setSelectedShifts([]); }}
+                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${shiftType === '247' ? 'bg-indigo-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Ca 24/7
+                  </button>
                 </div>
-                <div className="space-y-1">
-                  <p className="font-bold text-emerald-400 underline">{t('shift247')}</p>
-                  <p className="text-slate-400">C1: 06:00 - 18:00</p>
-                  <p className="text-slate-400">C2: 18:00 - 06:00</p>
+              </div>
+
+              <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-700/50 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Chọn Ca Cụ Thể</span>
+                  {selectedShifts.length > 0 && (
+                    <button 
+                      onClick={() => setSelectedShifts([])}
+                      className="text-[10px] text-indigo-400 hover:underline font-bold"
+                    >
+                      Bỏ chọn tất cả
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SHIFT_OPTIONS[shiftType].map(shift => {
+                    const isSelected = selectedShifts.includes(shift);
+                    return (
+                      <button
+                        key={shift}
+                        onClick={() => toggleShift(shift)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                          isSelected 
+                            ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/20' 
+                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                        }`}
+                      >
+                        {shift}
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                  {selectedShifts.length === 0 && (
+                    <div className="w-full text-center py-2 text-[10px] text-slate-500 italic font-medium">
+                      Mặc định: Tải toàn bộ các ca
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
