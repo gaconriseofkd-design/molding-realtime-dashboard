@@ -115,7 +115,8 @@ export function LiveDashboard() {
             name: r.mold_id,
             size: r.mold_size,
             qty: r.quantity,
-            updatedAt: r.scanned_in_at
+            updatedAt: r.scanned_in_at,
+            statusNote: r.status_note
           }));
 
         const moldsCount = moldsRunningOnThisMachine.reduce((sum, mold) => sum + mold.qty, 0);
@@ -363,20 +364,55 @@ export function LiveDashboard() {
                 {t('analyticsBtn')}
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm font-medium">
-              <div className="flex items-center gap-2 text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                <span className="w-3 h-3 rounded-full bg-emerald-500 block shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
-                {t('optimal')}
-              </div>
-              <div className="flex items-center gap-2 text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                <span className="w-3 h-3 rounded-full bg-amber-500 block shadow-[0_0_10px_rgba(245,158,11,0.5)]"></span>
-                {t('warning')}
-              </div>
-              <div className="flex items-center gap-2 text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                <span className="w-3 h-3 rounded-full bg-rose-500 block shadow-[0_0_10px_rgba(244,63,94,0.5)]"></span>
-                {t('underutilized')}
-              </div>
-            </div>
+          </div>
+
+          {/* Warning Bars */}
+          <div className="flex flex-col gap-3">
+            {machines.flatMap(m => m.molds.filter(mold => mold.statusNote === 'material_out').map(mold => ({ mold, machine: m }))).length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl flex items-center gap-3 animate-pulse shadow-lg shadow-rose-500/5"
+              >
+                <div className="bg-rose-500 p-1.5 rounded-lg">
+                  <span className="text-white text-[10px] font-black uppercase tracking-tighter">HẾT LIỆU</span>
+                </div>
+                <div className="text-sm font-bold text-rose-400">
+                  <span className="opacity-70 mr-2 uppercase tracking-wider text-[10px]">Cảnh báo hết liệu:</span>
+                  {machines.flatMap(m => m.molds.filter(mold => mold.statusNote === 'material_out').map(mold => (
+                    <span key={`${m.id}-${mold.id}-${mold.size}`} className="mr-3 inline-flex items-center gap-1">
+                      <span className="text-white">{mold.id}</span>
+                      <span className="text-indigo-400 opacity-80 text-xs">({mold.size})</span>
+                      <span className="opacity-50">/</span>
+                      <span className="text-emerald-400 font-black">{m.id}</span>
+                    </span>
+                  )))}
+                </div>
+              </motion.div>
+            )}
+
+            {machines.flatMap(m => m.molds.filter(mold => mold.statusNote === 'broken_mold').map(mold => ({ mold, machine: m }))).length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl flex items-center gap-3 animate-pulse shadow-lg shadow-amber-500/5"
+              >
+                <div className="bg-amber-500 p-1.5 rounded-lg">
+                  <span className="text-white text-[10px] font-black uppercase tracking-tighter">KHUÔN HƯ</span>
+                </div>
+                <div className="text-sm font-bold text-amber-400">
+                  <span className="opacity-70 mr-2 uppercase tracking-wider text-[10px]">Cảnh báo khuôn hư:</span>
+                  {machines.flatMap(m => m.molds.filter(mold => mold.statusNote === 'broken_mold').map(mold => (
+                    <span key={`${m.id}-${mold.id}-${mold.size}`} className="mr-3 inline-flex items-center gap-1">
+                      <span className="text-white">{mold.id}</span>
+                      <span className="text-indigo-400 opacity-80 text-xs">({mold.size})</span>
+                      <span className="opacity-50">/</span>
+                      <span className="text-emerald-400 font-black">{m.id}</span>
+                    </span>
+                  )))}
+                </div>
+              </motion.div>
+            )}
           </div>
 
           {/* Sticky Filter Bar */}

@@ -41,6 +41,8 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
     }
   };
 
+  const hasAlert = machine.molds.some(m => !!m.statusNote);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -50,7 +52,7 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
       onClick={onClick}
       className={`relative bg-slate-800/80 backdrop-blur border rounded-2xl p-5 shadow-lg transition-all group flex flex-col h-full
         ${onClick ? 'cursor-pointer' : ''}
-        ${isInactive
+        ${hasAlert ? 'animate-pulse-red border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : isInactive
           ? 'border-slate-700/50 opacity-60 hover:opacity-80'
           : 'border-slate-700 hover:shadow-indigo-500/10 hover:border-slate-600'
         }`}
@@ -122,7 +124,7 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
         </h3>
         <div className="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto scrollbar-thin pr-1 pb-1">
           {machine.molds.map(mold => (
-            <MoldChip key={mold.id} mold={mold} />
+            <MoldChip key={`${mold.id}-${mold.size}`} mold={mold} machineId={machine.id} />
           ))}
           {machine.molds.length === 0 && (
             <div className="text-sm text-slate-500 italic py-2">{t('noMolds')}</div>

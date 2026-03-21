@@ -4,6 +4,7 @@ export interface Mold {
   size: string;
   qty: number;
   updatedAt?: string;
+  statusNote?: 'material_out' | 'broken_mold';
 }
 
 export interface Machine {

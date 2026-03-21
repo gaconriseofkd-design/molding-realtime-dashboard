@@ -35,3 +35,23 @@
     scrollbar-color: #475569 #1e293b;
   }
 }
+
+@keyframes pulse-red {
+  0%, 100% { border-color: rgba(244, 63, 94, 0.5); box-shadow: 0 0 10px rgba(244, 63, 94, 0.2); }
+  50% { border-color: rgba(244, 63, 94, 1); box-shadow: 0 0 20px rgba(244, 63, 94, 0.6); }
+}
+
+@keyframes pulse-mold {
+  0%, 100% { background-color: rgba(244, 63, 94, 0.1); }
+  50% { background-color: rgba(244, 63, 94, 0.3); }
+}
+
+.animate-pulse-red {
+  border-width: 2px !important;
+  animation: pulse-red 1s infinite alternate;
+}
+
+.animate-pulse-mold {
+  animation: pulse-mold 1s infinite alternate;
+  border-color: rgba(244,63,94,0.4) !important;
+}
