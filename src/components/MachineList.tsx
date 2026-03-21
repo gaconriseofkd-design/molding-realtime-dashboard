@@ -5,9 +5,10 @@ interface MachineListProps {
   machines: Machine[];
   onMachineClick?: (machine: Machine) => void;
   onStatusChange?: (machine: Machine, newStatus: 'active' | 'stop' | 'pause') => void;
+  onRefresh?: () => void;
 }
 
-export function MachineList({ machines, onMachineClick, onStatusChange }: MachineListProps) {
+export function MachineList({ machines, onMachineClick, onStatusChange, onRefresh }: MachineListProps) {
   return (
     <>
       {machines.map((machine, idx) => (
@@ -17,6 +18,7 @@ export function MachineList({ machines, onMachineClick, onStatusChange }: Machin
           machine={machine}
           onClick={() => onMachineClick?.(machine)}
           onStatusChange={onStatusChange}
+          onRefresh={onRefresh}
         />
       ))}
     </>

@@ -501,6 +501,7 @@ export function LiveDashboard() {
               machines={filteredMachines}
               onMachineClick={handleEditMachine}
               onStatusChange={(machine) => setStatusChangeTarget(machine)}
+              onRefresh={fetchData}
             />
             
             {/* Add Machine "Plus" Card */}

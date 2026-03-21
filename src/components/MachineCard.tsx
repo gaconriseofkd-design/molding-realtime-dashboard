@@ -9,10 +9,11 @@ interface MachineCardProps {
   index: number;
   onClick?: () => void;
   onStatusChange?: (machine: Machine, newStatus: 'active' | 'stop' | 'pause') => void;
+  onRefresh?: () => void;
 }
 
 
-export function MachineCard({ machine, index, onClick, onStatusChange }: MachineCardProps) {
+export function MachineCard({ machine, index, onClick, onStatusChange, onRefresh }: MachineCardProps) {
   const { t } = useLanguage();
 
   const OP_STATUS_CONFIG = {
@@ -124,7 +125,12 @@ export function MachineCard({ machine, index, onClick, onStatusChange }: Machine
         </h3>
         <div className="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto scrollbar-thin pr-1 pb-1">
           {machine.molds.map(mold => (
-            <MoldChip key={`${mold.id}-${mold.size}`} mold={mold} machineId={machine.id} />
+            <MoldChip 
+              key={`${mold.id}-${mold.size}`} 
+              mold={mold} 
+              machineId={machine.id} 
+              onStatusUpdate={onRefresh}
+            />
           ))}
           {machine.molds.length === 0 && (
             <div className="text-sm text-slate-500 italic py-2">{t('noMolds')}</div>
