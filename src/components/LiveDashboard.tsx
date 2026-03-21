@@ -306,7 +306,8 @@ export function LiveDashboard() {
                 mold_id: m.id,
                 mold_size: m.size,
                 quantity: Math.abs(delta),
-                action_type: delta > 0 ? 'IN' : 'OUT'
+                action_type: delta > 0 ? 'IN' : 'OUT',
+                load_percentage: selectedMachine.loadPercentage
               });
             }
           } else if (m.qty === 0 && orig) {
@@ -320,7 +321,8 @@ export function LiveDashboard() {
               mold_id: m.id,
               mold_size: m.size,
               quantity: orig.qty,
-              action_type: 'OUT'
+              action_type: 'OUT',
+              load_percentage: selectedMachine.loadPercentage
             });
           }
         }

@@ -71,6 +71,7 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
         
         return {
           'Machine': log.machine_id,
+          'Load': log.load_percentage ? `${log.load_percentage}%` : '-',
           'Mold ID': log.mold_id,
           'Size': log.mold_size,
           'Quantity': log.quantity,
@@ -87,7 +88,7 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
       
       // Auto-size columns
       const colWidths = [
-        { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 25 }
+        { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 25 }
       ];
       ws['!cols'] = colWidths;
 

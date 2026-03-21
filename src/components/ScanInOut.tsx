@@ -278,6 +278,17 @@ export function ScanInOut() {
     if (scanType === 'OUT' && isAdvancedScanOut) {
       try {
         setIsSubmitting(true);
+        // Fetch machine info for capacity calculation
+        const machineRes = await supabase.from('machines').select('max_molds').eq('id', selectedMachineId).single();
+        const dbMax = machineRes.data?.max_molds;
+        const fallbackMax = (() => {
+          const num = parseInt(selectedMachineId.replace(/\D/g, ''));
+          if (num >= 33 && num <= 40) return 24;
+          if (num >= 45 && num <= 50) return 32;
+          return 12;
+        })();
+        const maxMolds = dbMax || fallbackMax;
+
         if (advancedScanMode === '100') {
            const uuids = runningMoldsOnMachine.map(r => r.uuid);
            if (!uuids.length) {
@@ -288,13 +299,18 @@ export function ScanInOut() {
             const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
             if (error) throw error;
             
+            // Calculate current machine load for logging
+            const currentTotalLoad = runningMoldsOnMachine.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const currentLoadPercent = Math.round((currentTotalLoad / maxMolds) * 100);
+
             // Log history for all molds on machine
             const logs = runningMoldsOnMachine.map(r => ({
               machine_id: selectedMachineId,
               mold_id: r.mold_id,
               mold_size: r.mold_size,
               quantity: r.quantity,
-              action_type: 'OUT'
+              action_type: 'OUT',
+              load_percentage: currentLoadPercent
             }));
             await supabase.from('scan_logs').insert(logs);
         } else if (advancedScanMode === 'LIST') {
@@ -307,6 +323,10 @@ export function ScanInOut() {
             const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
             if (error) throw error;
             
+            // Calculate current machine load for logging
+            const currentTotalLoad = runningMoldsOnMachine.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const currentLoadPercent = Math.round((currentTotalLoad / maxMolds) * 100);
+
             // Log history for selected items
             const selectedItems = runningMoldsOnMachine.filter(r => selectedScanOutItems[r.uuid]);
             const logs = selectedItems.map(r => ({
@@ -314,7 +334,8 @@ export function ScanInOut() {
               mold_id: r.mold_id,
               mold_size: r.mold_size,
               quantity: r.quantity,
-              action_type: 'OUT'
+              action_type: 'OUT',
+              load_percentage: currentLoadPercent
             }));
             await supabase.from('scan_logs').insert(logs);
         }
@@ -427,13 +448,15 @@ export function ScanInOut() {
 
         if (error) throw error;
 
-        // Log history
+        // Log history with current load (AFTER scan in)
+        const loadPercent = Math.round(((currentTotal + scanQty) / maxMolds) * 100);
         await supabase.from('scan_logs').insert({
           machine_id: selectedMachineId,
           mold_id: selectedMoldId,
           mold_size: selectedSize,
           quantity: scanQty,
-          action_type: 'IN'
+          action_type: 'IN',
+          load_percentage: loadPercent
         });
       } else {
         // SCAN OUT
@@ -451,13 +474,15 @@ export function ScanInOut() {
           if (error) throw error;
         }
 
-        // Log history
+        // Log history with current load (AFTER scan out)
+        const loadPercent = Math.round((Math.max(0, currentTotal - scanQty) / maxMolds) * 100);
         await supabase.from('scan_logs').insert({
           machine_id: selectedMachineId,
           mold_id: selectedMoldId,
           mold_size: selectedSize,
           quantity: scanQty,
-          action_type: 'OUT'
+          action_type: 'OUT',
+          load_percentage: loadPercent
         });
       }
 

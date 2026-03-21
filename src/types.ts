@@ -41,4 +41,5 @@ export interface ScanLog {
   quantity: number;
   action_type: 'IN' | 'OUT';
   operator_name?: string;
+  load_percentage?: number;
 }
