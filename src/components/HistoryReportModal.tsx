@@ -278,8 +278,10 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
                     );
                   })}
                   {selectedShifts.length === 0 && (
-                    <div className="w-full text-center py-2 text-[10px] text-slate-500 italic font-medium">
-                      Mặc định: Tải toàn bộ các ca
+                    <div className="w-full text-center py-4 bg-indigo-500/5 rounded-xl border border-dashed border-indigo-500/20 mt-4">
+                      <span className="text-sm font-bold text-indigo-400 uppercase tracking-widest">
+                        Mặc định: Tải toàn bộ các ca
+                      </span>
                     </div>
                   )}
                 </div>
