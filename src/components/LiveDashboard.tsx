@@ -1,7 +1,8 @@
 import { Header } from './Header';
 import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, Filter, ArrowUpDown, Loader2, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock, FileText } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Loader2, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock, FileText, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
@@ -300,6 +301,36 @@ export function LiveDashboard() {
     }
   };
 
+  const handleExportExcel = () => {
+    const exportData = machines.flatMap(machine => 
+      machine.molds.map(mold => ({
+        'Machine ID': machine.id,
+        'Machine Name': machine.name,
+        'Operational Status': machine.operationalStatus,
+        'Load %': machine.loadPercentage,
+        'Max Molds': machine.maxMolds,
+        'Mold ID': mold.id,
+        'Mold Size': mold.size,
+        'Quantity': mold.qty,
+        'Status Note': mold.statusNote || 'OK',
+        'Running Time': (() => {
+          if (!mold.updatedAt) return 'N/A';
+          const start = new Date(mold.updatedAt).getTime();
+          const now = new Date().getTime();
+          const diffMs = now - start;
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffHours = Math.floor(diffMins / 60);
+          return `${diffHours}h ${diffMins % 60}m`;
+        })()
+      }))
+    );
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Live Status");
+    XLSX.writeFile(wb, `Molding_Live_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const handleAddMachine = async () => {
     if (!newMachineId.trim()) {
       alert(t('errEnterMachineId'));
@@ -361,8 +392,16 @@ export function LiveDashboard() {
                 onClick={() => setShowAnalytics(true)}
                 className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400/50"
               >
-                <BarChartIcon className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                < BarChartIcon className="w-4 h-4 group-hover:rotate-12 transition-transform" />
                 {t('analyticsBtn')}
+              </button>
+
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-sm font-bold transition-all active:scale-95 group shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/50"
+              >
+                <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                {t('exportExcel') || 'Xuất Excel'}
               </button>
             </div>
           </div>
