@@ -472,6 +472,12 @@ export function ScanInOut() {
             .delete()
             .eq('uuid', existing.uuid);
           if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('running_molds')
+            .update({ quantity: newQty })
+            .eq('uuid', existing.uuid);
+          if (error) throw error;
         }
 
         // Log history with current load (AFTER scan out)
