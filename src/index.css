@@ -41,9 +41,19 @@
   50% { border-color: rgba(244, 63, 94, 1); box-shadow: 0 0 20px rgba(244, 63, 94, 0.6); }
 }
 
+@keyframes pulse-amber {
+  0%, 100% { border-color: rgba(245, 158, 11, 0.5); box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+  50% { border-color: rgba(245, 158, 11, 1); box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); }
+}
+
 @keyframes pulse-mold {
   0%, 100% { background-color: rgba(244, 63, 94, 0.1); }
   50% { background-color: rgba(244, 63, 94, 0.3); }
+}
+
+@keyframes pulse-mold-yellow {
+  0%, 100% { background-color: rgba(245, 158, 11, 0.1); }
+  50% { background-color: rgba(245, 158, 11, 0.3); }
 }
 
 .animate-pulse-red {
@@ -51,7 +61,17 @@
   animation: pulse-red 1s infinite alternate;
 }
 
+.animate-pulse-amber {
+  border-width: 2px !important;
+  animation: pulse-amber 1s infinite alternate;
+}
+
 .animate-pulse-mold {
   animation: pulse-mold 1s infinite alternate;
   border-color: rgba(244,63,94,0.4) !important;
+}
+
+.animate-pulse-mold-yellow {
+  animation: pulse-mold-yellow 1s infinite alternate;
+  border-color: rgba(245,158,11,0.4) !important;
 }

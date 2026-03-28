@@ -42,7 +42,8 @@ export function MachineCard({ machine, index, onClick, onStatusChange, onRefresh
     }
   };
 
-  const hasAlert = machine.molds.some(m => !!m.statusNote);
+  const hasMaterialOut = machine.molds.some(m => m.statusNote === 'material_out');
+  const hasBrokenMold = machine.molds.some(m => m.statusNote === 'broken_mold');
 
   return (
     <motion.div
@@ -53,9 +54,13 @@ export function MachineCard({ machine, index, onClick, onStatusChange, onRefresh
       onClick={onClick}
       className={`relative bg-slate-800/80 backdrop-blur border rounded-2xl p-5 shadow-lg transition-all group flex flex-col h-full
         ${onClick ? 'cursor-pointer' : ''}
-        ${hasAlert ? 'animate-pulse-red border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : isInactive
-          ? 'border-slate-700/50 opacity-60 hover:opacity-80'
-          : 'border-slate-700 hover:shadow-indigo-500/10 hover:border-slate-600'
+        ${hasMaterialOut 
+          ? 'animate-pulse-red border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' 
+          : hasBrokenMold
+            ? 'animate-pulse-amber border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+            : isInactive
+              ? 'border-slate-700/50 opacity-60 hover:opacity-80'
+              : 'border-slate-700 hover:shadow-indigo-500/10 hover:border-slate-600'
         }`}
     >
       {/* Operational Status Badge — top right */}

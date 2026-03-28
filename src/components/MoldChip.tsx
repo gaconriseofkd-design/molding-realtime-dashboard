@@ -80,11 +80,19 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
           setShowStatusMenu(true);
         }}
         className={`inline-flex items-center gap-2 bg-slate-800 border rounded-md px-3 py-1.5 shadow-sm hover:bg-slate-700 transition-all cursor-pointer select-none
-          ${hasStatus ? 'animate-pulse-mold border-rose-500/50' : 'border-slate-700'}`}
+          ${mold.statusNote === 'material_out' ? 'animate-pulse-mold border-rose-500/50' : 
+            mold.statusNote === 'broken_mold' ? 'animate-pulse-mold-yellow border-amber-500/50' : 
+            'border-slate-700'}`}
       >
         <div className="flex items-center gap-1.5 text-slate-300">
-          <Package className={`w-3.5 h-3.5 ${hasStatus ? 'text-rose-400' : 'text-indigo-400'}`} />
-          <span className={`text-xs font-semibold ${hasStatus ? 'text-rose-200' : ''}`}>{mold.name}</span>
+          <Package className={`w-3.5 h-3.5 ${
+            mold.statusNote === 'material_out' ? 'text-rose-400' : 
+            mold.statusNote === 'broken_mold' ? 'text-amber-400' : 
+            'text-indigo-400'}`} />
+          <span className={`text-xs font-semibold ${
+            mold.statusNote === 'material_out' ? 'text-rose-200' : 
+            mold.statusNote === 'broken_mold' ? 'text-amber-200' : 
+            ''}`}>{mold.name}</span>
         </div>
         
         <div className="h-3 w-px bg-slate-600"></div>
@@ -97,7 +105,11 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
           <motion.span 
             animate={hasStatus ? { scale: [1, 1.2, 1] } : {}}
             transition={{ duration: 0.5, repeat: Infinity }}
-            className={`font-bold px-1.5 py-0.5 rounded ${hasStatus ? 'bg-rose-500/30 text-rose-200' : 'bg-slate-700/50 text-slate-200'}`}
+            className={`font-bold px-1.5 py-0.5 rounded ${
+              mold.statusNote === 'material_out' ? 'bg-rose-500/30 text-rose-200' : 
+              mold.statusNote === 'broken_mold' ? 'bg-amber-500/30 text-amber-200' : 
+              'bg-slate-700/50 text-slate-200'
+            }`}
           >
             {mold.qty}
           </motion.span>
