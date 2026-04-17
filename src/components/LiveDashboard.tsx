@@ -11,6 +11,39 @@ import { AnalyticsModal } from './AnalyticsModal';
 import { HistoryReportModal } from './HistoryReportModal';
 import { SimpleMachineView } from './SimpleMachineView';
 
+function StatusTimer({ timestamp }: { timestamp?: string }) {
+  const [display, setDisplay] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      if (!timestamp) {
+        setDisplay('--');
+        return;
+      }
+      const diff = Date.now() - new Date(timestamp).getTime();
+      if (diff < 0) {
+        setDisplay('0s');
+        return;
+      }
+      const s = Math.floor(diff / 1000);
+      const m = Math.floor(s / 60);
+      const h = Math.floor(m / 60);
+      const d = Math.floor(h / 24);
+
+      if (d > 0) setDisplay(`${d}d ${h % 24}h`);
+      else if (h > 0) setDisplay(`${h}h ${m % 60}m`);
+      else if (m > 0) setDisplay(`${m}m ${s % 60}s`);
+      else setDisplay(`${s}s`);
+    };
+
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [timestamp]);
+
+  return <span>{display}</span>;
+}
+
 export function LiveDashboard() {
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,6 +151,7 @@ export function LiveDashboard() {
             qty: r.quantity,
             updatedAt: r.scanned_in_at,
             statusNote: r.status_note,
+            statusNoteUpdatedAt: r.status_note_updated_at,
             uuid: r.uuid
           }));
 
@@ -417,14 +451,18 @@ export function LiveDashboard() {
                 <div className="bg-rose-500 p-1.5 rounded-lg">
                   <span className="text-white text-[10px] font-black uppercase tracking-tighter">HẾT LIỆU</span>
                 </div>
-                <div className="text-sm font-bold text-rose-400">
-                  <span className="opacity-70 mr-2 uppercase tracking-wider text-[10px]">Cảnh báo hết liệu:</span>
+                <div className="text-sm font-bold text-rose-400 flex flex-wrap gap-y-2">
+                  <span className="opacity-70 mr-2 uppercase tracking-wider text-[10px] self-center">Cảnh báo hết liệu:</span>
                   {machines.flatMap(m => m.molds.filter(mold => mold.statusNote === 'material_out').map(mold => (
-                    <span key={`${m.id}-${mold.id}-${mold.size}`} className="mr-3 inline-flex items-center gap-1">
-                      <span className="text-white">{mold.id}</span>
-                      <span className="text-indigo-400 opacity-80 text-xs">({mold.size})</span>
-                      <span className="opacity-50">/</span>
+                    <span key={`${m.id}-${mold.id}-${mold.size}`} className="mr-3 inline-flex items-center gap-1.5 bg-rose-500/20 px-2.5 py-1 rounded-lg border border-rose-500/30">
+                      <span className="text-white font-black">{mold.id}</span>
+                      <span className="text-indigo-400 opacity-80 text-[10px] font-bold">({mold.size})</span>
+                      <span className="opacity-30 text-white">/</span>
                       <span className="text-emerald-400 font-black">{m.id}</span>
+                      <div className="flex items-center gap-1 ml-1 pl-1.5 border-l border-rose-500/30 text-rose-200 text-[10px] font-mono font-bold">
+                        <Clock className="w-2.5 h-2.5" />
+                        <StatusTimer timestamp={mold.statusNoteUpdatedAt || mold.updatedAt} />
+                      </div>
                     </span>
                   )))}
                 </div>
@@ -440,14 +478,18 @@ export function LiveDashboard() {
                 <div className="bg-amber-500 p-1.5 rounded-lg">
                   <span className="text-white text-[10px] font-black uppercase tracking-tighter">KHUÔN HƯ</span>
                 </div>
-                <div className="text-sm font-bold text-amber-400">
-                  <span className="opacity-70 mr-2 uppercase tracking-wider text-[10px]">Cảnh báo khuôn hư:</span>
+                <div className="text-sm font-bold text-amber-400 flex flex-wrap gap-y-2">
+                  <span className="opacity-70 mr-2 uppercase tracking-wider text-[10px] self-center">Cảnh báo khuôn hư:</span>
                   {machines.flatMap(m => m.molds.filter(mold => mold.statusNote === 'broken_mold').map(mold => (
-                    <span key={`${m.id}-${mold.id}-${mold.size}`} className="mr-3 inline-flex items-center gap-1">
-                      <span className="text-white">{mold.id}</span>
-                      <span className="text-indigo-400 opacity-80 text-xs">({mold.size})</span>
-                      <span className="opacity-50">/</span>
+                    <span key={`${m.id}-${mold.id}-${mold.size}`} className="mr-3 inline-flex items-center gap-1.5 bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30">
+                      <span className="text-white font-black">{mold.id}</span>
+                      <span className="text-indigo-400 opacity-80 text-[10px] font-bold">({mold.size})</span>
+                      <span className="opacity-30 text-white">/</span>
                       <span className="text-emerald-400 font-black">{m.id}</span>
+                      <div className="flex items-center gap-1 ml-1 pl-1.5 border-l border-amber-500/30 text-amber-200 text-[10px] font-mono font-bold">
+                        <Clock className="w-2.5 h-2.5" />
+                        <StatusTimer timestamp={mold.statusNoteUpdatedAt || mold.updatedAt} />
+                      </div>
                     </span>
                   )))}
                 </div>

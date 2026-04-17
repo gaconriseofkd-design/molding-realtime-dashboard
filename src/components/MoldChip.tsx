@@ -17,34 +17,42 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
 
   useEffect(() => {
     const calculateDuration = () => {
-      if (!mold.updatedAt) return '--';
-      const start = new Date(mold.updatedAt).getTime();
+      // Priority: use statusNoteUpdatedAt if there is an alert status, otherwise use updatedAt
+      const targetTime = mold.statusNote ? (mold.statusNoteUpdatedAt || mold.updatedAt) : mold.updatedAt;
+      if (!targetTime) return '--';
+
+      const start = new Date(targetTime).getTime();
       const now = new Date().getTime();
       const diffMs = now - start;
       
-      if (diffMs < 0) return '0m';
+      if (diffMs < 0) return '0s';
 
-      const diffMins = Math.floor(diffMs / 60000);
+      const diffSecs = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSecs / 60);
       const diffHours = Math.floor(diffMins / 60);
       const diffDays = Math.floor(diffHours / 24);
 
       if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h`;
       if (diffHours > 0) return `${diffHours}h ${diffMins % 60}m`;
-      return `${diffMins}m`;
+      if (diffMins > 0) return `${diffMins}m ${diffSecs % 60}s`;
+      return `${diffSecs}s`;
     };
 
     setDuration(calculateDuration());
     const timer = setInterval(() => {
       setDuration(calculateDuration());
-    }, 60000);
+    }, 1000);
 
     return () => clearInterval(timer);
-  }, [mold.updatedAt]);
+  }, [mold.updatedAt, mold.statusNote, mold.statusNoteUpdatedAt]);
 
   const updateStatus = async (status: 'material_out' | 'broken_mold' | null) => {
     setIsUpdating(true);
     try {
-      let query = supabase.from('running_molds').update({ status_note: status });
+      let query = supabase.from('running_molds').update({ 
+        status_note: status,
+        status_note_updated_at: status ? new Date().toISOString() : null
+      });
       
       if (mold.uuid) {
         query = query.eq('uuid', mold.uuid);
@@ -131,8 +139,10 @@ export function MoldChip({ mold, machineId, onStatusUpdate }: MoldChipProps) {
         <div className="h-3 w-px bg-slate-600"></div>
 
         <div className="flex items-center gap-1 font-mono text-[10px]">
-          <Clock className="w-3 h-3 text-amber-400/80" />
-          <span className="text-amber-200/90 font-bold whitespace-nowrap">{duration}</span>
+          <Clock className={`w-3 h-3 ${hasStatus ? 'text-rose-400 animate-pulse' : 'text-amber-400/80'}`} />
+          <span className={`${hasStatus ? 'text-rose-200 font-black' : 'text-amber-200/90 font-bold'} whitespace-nowrap`}>
+            {duration}
+          </span>
         </div>
       </div>
 
