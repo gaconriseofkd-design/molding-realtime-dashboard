@@ -56,6 +56,8 @@ const translations: Translations = {
   addNewMold: { en: 'Add New Mold', vi: 'Thêm Khuôn Mới' },
   importExcel: { en: 'Import Excel', vi: 'Nhập từ Excel' },
   downloadTemplate: { en: 'Download Template', vi: 'Tải Template Excel' },
+  downloadMaster: { en: 'Download Mold Master', vi: 'Tải Master Khuôn' },
+  enterPasswordToDownload: { en: 'Enter password to download (admin)', vi: 'Nhập mật khẩu để tải file (admin)' },
   uploading: { en: 'Uploading...', vi: 'Đang tải lên...' },
   uploadSuccess: { en: 'Upload successful!', vi: 'Tải lên thành công!' },
   uploadFailed: { en: 'Upload failed!', vi: 'Tải lỗi! Vui lòng kiểm tra lại.' },

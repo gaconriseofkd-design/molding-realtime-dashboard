@@ -132,6 +132,54 @@ export function MoldDatabase() {
     XLSX.writeFile(wb, 'Mold_Master_Template.xlsx');
   };
 
+  const handleDownloadMaster = async () => {
+    const pass = window.prompt(t('enterPasswordToDownload'));
+    if (pass !== 'admin') {
+      if (pass !== null) alert(t('incorrectPassword'));
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      // Fetch ALL master data
+      const { data: masterData, error: masterError } = await supabase
+        .from('mold_master')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (masterError) throw masterError;
+
+      // Fetch running data to include in export
+      const { data: runningData } = await supabase
+        .from('running_molds')
+        .select('mold_id, mold_size, quantity');
+
+      const runningCountMap: Record<string, number> = {};
+      runningData?.forEach(item => {
+        const key = `${item.mold_id}_${item.mold_size}`;
+        runningCountMap[key] = (runningCountMap[key] || 0) + (item.quantity || 0);
+      });
+
+      const dataToExport = masterData.map(item => ({
+        'Mold ID': item.id,
+        'Size': item.size,
+        'Total Owned': item.total_owned,
+        'Currently Running': runningCountMap[`${item.id}_${item.size}`] || 0,
+        'Status': item.status
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Master_Khuon');
+      XLSX.writeFile(wb, `Master_Khuon_Full_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error: any) {
+      console.error('Export error:', error);
+      alert('Export failed: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -362,6 +410,13 @@ export function MoldDatabase() {
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{t('downloadTemplate')}</span>
+          </button>
+          <button 
+            onClick={handleDownloadMaster}
+            className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('downloadMaster')}</span>
           </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
