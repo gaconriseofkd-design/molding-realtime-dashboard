@@ -370,6 +370,12 @@ export function ScanInOut() {
       return;
     }
 
+    // Bắt buộc chọn kệ khi Scan OUT
+    if (scanType === 'OUT' && !selectedShelfId) {
+      alert('⚠️ Vui lòng chọn Kệ khuôn trước khi Scan Out!\n\nKhuôn scan ra phải được trả về kệ để theo dõi vị trí lưu trữ.');
+      return;
+    }
+
     if (scanType === 'OUT' && isAdvancedScanOut) {
       try {
         setIsSubmitting(true);
@@ -1311,11 +1317,11 @@ export function ScanInOut() {
 
       <button 
         onClick={handleSubmit}
-        disabled={isSubmitting || showSuccess || !selectedMachineId || (!isAdvancedScanOut && (!selectedMoldId || !selectedSize))}
+        disabled={isSubmitting || showSuccess || !selectedMachineId || (!isAdvancedScanOut && (!selectedMoldId || !selectedSize)) || (scanType === 'OUT' && !selectedShelfId)}
         className={`w-full relative mt-auto py-6 rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden ${
           showSuccess 
             ? 'bg-emerald-500 text-white' 
-            : (!selectedMachineId || (!isAdvancedScanOut && (!selectedMoldId || !selectedSize)))
+            : (!selectedMachineId || (!isAdvancedScanOut && (!selectedMoldId || !selectedSize)) || (scanType === 'OUT' && !selectedShelfId))
               ? 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'
               : 'bg-slate-100 hover:bg-white text-slate-900'
         }`}
@@ -1337,6 +1343,20 @@ export function ScanInOut() {
           )}
         </AnimatePresence>
       </button>
+
+      {/* Hint: remind user to select shelf when Scan OUT */}
+      {scanType === 'OUT' && !selectedShelfId && selectedMachineId && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 -mt-2"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-amber-300 text-xs font-semibold leading-relaxed">
+            Scan OUT bắt buộc phải chọn Kệ khuôn để trả khuôn về kệ lưu trữ
+          </p>
+        </motion.div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         #reader video {

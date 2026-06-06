@@ -284,6 +284,30 @@ export function MoldShelfDatabase() {
     }
   };
 
+  // Export mold history to Excel
+  const handleExportHistoryExcel = () => {
+    if (moldHistoryData.length === 0) return;
+    try {
+      const exportData = moldHistoryData.map(entry => ({
+        'Mã Khuôn (Mold ID)': historyMoldId,
+        'Size Khuôn (Mold Size)': historyMoldSize || '(tất cả size)',
+        'Kệ (Shelf)': entry.shelf_name,
+        'Mã Kệ (Shelf ID)': entry.shelf_id,
+        'Hành động (Action)': entry.action_type === 'IN' ? 'Scan In' : 'Scan Out',
+        'Số lượng (Quantity)': entry.quantity,
+        'Thời điểm (Timestamp)': new Date(entry.created_at).toLocaleString('vi-VN')
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Lich_Su_Scan_Khuon');
+      const fileName = `LichSu_${historyMoldId}${historyMoldSize ? '_' + historyMoldSize : ''}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err: any) {
+      alert('Lỗi xuất Excel: ' + err.message);
+    }
+  };
+
   const handleExportExcel = () => {
     try {
       const exportData = shelves.flatMap(shelf => {
@@ -1511,7 +1535,17 @@ export function MoldShelfDatabase() {
                           Lịch sử khuôn <span className="text-violet-400">{historyMoldId}</span>
                           {historyMoldSize && <span className="text-indigo-400 ml-1">(Size: {historyMoldSize})</span>}
                         </h3>
-                        <span className="text-xs text-slate-500 bg-slate-900/60 px-3 py-1 rounded-full">{moldHistoryData.length} bản ghi</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 bg-slate-900/60 px-3 py-1 rounded-full">{moldHistoryData.length} bản ghi</span>
+                          <button
+                            onClick={handleExportHistoryExcel}
+                            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm"
+                            title="Tải file Excel toàn bộ lịch sử"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            Excel
+                          </button>
+                        </div>
                       </div>
 
                       {/* Summary: last IN and last OUT */}
