@@ -269,6 +269,124 @@ export function MoldShelfDatabase() {
     }
   };
 
+  // Quick adjust quantity of a mold in detailed view table (requires admin)
+  const handleQuickUpdateQty = (mold: MoldInShelf, delta: number) => {
+    handleRequiredAuth(async () => {
+      if (!selectedShelf) return;
+      const targetQty = mold.quantity + delta;
+      
+      if (targetQty <= 0) {
+        if (confirm(`Bạn có chắc chắn muốn xóa khuôn ${mold.mold_id} (Size ${mold.mold_size}) khỏi kệ này không?`)) {
+          try {
+            if (mold.uuid) {
+              const { error } = await supabase
+                .from('running_molds')
+                .delete()
+                .eq('uuid', mold.uuid);
+              if (error) throw error;
+            } else {
+              const { error } = await supabase
+                .from('running_molds')
+                .delete()
+                .eq('machine_id', selectedShelf.id)
+                .eq('mold_id', mold.mold_id)
+                .eq('mold_size', mold.mold_size);
+              if (error) throw error;
+            }
+            await fetchData();
+          } catch (err: any) {
+            alert('Lỗi xóa khuôn khỏi kệ: ' + err.message);
+          }
+        }
+        return;
+      }
+
+      // Verify strict validations before saving
+      try {
+        const { data: matchMaster, error: mastErr } = await supabase
+          .from('mold_master')
+          .select('id, size, total_owned')
+          .eq('id', mold.mold_id)
+          .eq('size', mold.mold_size)
+          .single();
+        
+        if (mastErr || !matchMaster) {
+          alert(`Lỗi: Khuôn ${mold.mold_id} (Size ${mold.mold_size}) không tồn tại trong Dữ liệu Khuôn!`);
+          return;
+        }
+
+        const { data: runningElsewhere, error: runErr } = await supabase
+          .from('running_molds')
+          .select('quantity')
+          .eq('mold_id', mold.mold_id)
+          .eq('mold_size', mold.mold_size)
+          .neq('machine_id', selectedShelf.id);
+        
+        if (runErr) throw runErr;
+
+        const elsewhereQty = (runningElsewhere || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const totalProposed = elsewhereQty + targetQty;
+        const totalOwned = matchMaster.total_owned || 0;
+
+        if (totalProposed > totalOwned) {
+          alert(`Không thể tăng số lượng! Tổng số lượng khuôn trên kệ và máy (${totalProposed}) vượt quá số lượng sở hữu (${totalOwned}) của mã này.`);
+          return;
+        }
+
+        // Perform update in DB
+        if (mold.uuid) {
+          const { error } = await supabase
+            .from('running_molds')
+            .update({ quantity: targetQty })
+            .eq('uuid', mold.uuid);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('running_molds')
+            .update({ quantity: targetQty })
+            .eq('machine_id', selectedShelf.id)
+            .eq('mold_id', mold.mold_id)
+            .eq('mold_size', mold.mold_size);
+          if (error) throw error;
+        }
+
+        await fetchData();
+      } catch (err: any) {
+        alert('Lỗi cập nhật số lượng: ' + err.message);
+      }
+    });
+  };
+
+  // Quick delete a mold from detailed view table (requires admin)
+  const handleQuickDeleteMold = (mold: MoldInShelf) => {
+    handleRequiredAuth(async () => {
+      if (!selectedShelf) return;
+      if (!confirm(`Bạn có chắc chắn muốn xóa khuôn ${mold.mold_id} (Size ${mold.mold_size}) khỏi kệ này không?`)) return;
+
+      try {
+        if (mold.uuid) {
+          const { error } = await supabase
+            .from('running_molds')
+            .delete()
+            .eq('uuid', mold.uuid);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('running_molds')
+            .delete()
+            .eq('machine_id', selectedShelf.id)
+            .eq('mold_id', mold.mold_id)
+            .eq('mold_size', mold.mold_size);
+          if (error) throw error;
+        }
+
+        await fetchData();
+      } catch (err: any) {
+        alert('Lỗi xóa khuôn khỏi kệ: ' + err.message);
+      }
+    });
+  };
+
   // Manage manual stock edits
   const handleEditStockClick = () => {
     if (!selectedShelf) return;
@@ -791,13 +909,14 @@ export function MoldShelfDatabase() {
                             <th className="px-5 py-3.5">Mã khuôn</th>
                             <th className="px-5 py-3.5">Size</th>
                             <th className="px-5 py-3.5 text-center">Số lượng</th>
-                            <th className="px-5 py-3.5 text-right">Cập nhật</th>
+                            <th className="px-5 py-3.5 text-center">Cập nhật</th>
+                            <th className="px-5 py-3.5 text-right">Xóa</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-850 text-sm">
                           {selectedShelf.molds.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-5 py-12 text-center text-slate-500 italic">
+                              <td colSpan={5} className="px-5 py-12 text-center text-slate-500 italic">
                                 Kệ trống. Hãy scan thêm khuôn hoặc nhấn Chỉnh sửa để cập nhật.
                               </td>
                             </tr>
@@ -810,9 +929,38 @@ export function MoldShelfDatabase() {
                                     {m.mold_size}
                                   </span>
                                 </td>
-                                <td className="px-5 py-3.5 text-center font-mono font-bold text-white">{m.quantity}</td>
-                                <td className="px-5 py-3.5 text-right text-xs text-slate-500 font-mono">
+                                <td className="px-5 py-3.5">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      onClick={() => handleQuickUpdateQty(m, -1)}
+                                      className="w-6 h-6 bg-slate-850 border border-slate-750 hover:bg-slate-700 rounded-lg flex items-center justify-center text-white font-bold text-xs transition-colors"
+                                      title="Giảm 1"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="w-8 text-center font-mono font-bold text-white text-sm">
+                                      {m.quantity}
+                                    </span>
+                                    <button
+                                      onClick={() => handleQuickUpdateQty(m, 1)}
+                                      className="w-6 h-6 bg-slate-850 border border-slate-750 hover:bg-slate-700 rounded-lg flex items-center justify-center text-white font-bold text-xs transition-colors"
+                                      title="Tăng 1"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-center text-xs text-slate-500 font-mono">
                                   {m.scanned_in_at ? new Date(m.scanned_in_at).toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td className="px-5 py-3.5 text-right">
+                                  <button
+                                    onClick={() => handleQuickDeleteMold(m)}
+                                    className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-700/50 rounded-lg transition-colors"
+                                    title="Xóa khuôn khỏi kệ"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </td>
                               </tr>
                             ))
