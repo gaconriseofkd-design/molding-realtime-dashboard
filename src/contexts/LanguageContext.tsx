@@ -166,6 +166,8 @@ const translations: Translations = {
   searchShelfPlaceholder: { en: 'Search mold code on shelves...', vi: 'Nhập mã khuôn để tìm vị trí kệ chứa...' },
   errMoldNotInDatabase: { en: 'Mold ID and Size do not exist in the Mold Database. Please add it there first!', vi: 'Mã khuôn và Size này chưa tồn tại trong Dữ liệu Khuôn. Vui lòng thêm vào đó trước!' },
   errTotalShelfExceedsOwned: { en: 'Total quantity on shelves and machines ({total}) would exceed total owned quantity ({owned}) in the Mold Database!', vi: 'Tổng số lượng khuôn trên kệ và máy ({total}) sẽ vượt quá số lượng sở hữu ({owned}) trong Dữ liệu Khuôn!' },
+  moldsOnShelf: { en: 'Molds on Shelf:', vi: 'Khuôn có trên kệ:' },
+  emptyShelf: { en: 'Shelf is empty (no molds)', vi: 'Kệ trống (không có khuôn)' },
 };
 
 interface LanguageContextType {
