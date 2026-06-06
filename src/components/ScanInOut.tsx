@@ -92,12 +92,21 @@ export function ScanInOut() {
     const savedRecents = localStorage.getItem('recent_molds');
     if (savedRecents) setRecentMolds(JSON.parse(savedRecents));
 
+    // Subscribe to machines changes (realtime sync for shelf name and list)
+    const channel = supabase
+      .channel('scan_in_out_machine_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, () => {
+        fetchMachinesAndShelves();
+      })
+      .subscribe();
+
     return () => {
       stopScanner();
+      supabase.removeChannel(channel);
     };
   }, []);
 
-  const fetchMeta = async () => {
+  const fetchMachinesAndShelves = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name, max_molds, operational_status').order('id');
     if (mData) {
       const machinesOnly = mData.filter(m => !m.id.startsWith('SHELF-'));
@@ -106,6 +115,10 @@ export function ScanInOut() {
       machinesRef.current = machinesOnly;
       setShelves(shelvesOnly);
     }
+  };
+
+  const fetchMeta = async () => {
+    await fetchMachinesAndShelves();
 
     let allMoldsData: {id: string, size: string, total_owned: number}[] = [];
     let page = 0;
