@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
-import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3 } from 'lucide-react';
+import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface MoldInShelf {
@@ -163,6 +164,42 @@ export function MoldShelfDatabase() {
       setMoldMasterList(allMoldsData);
     } catch (err) {
       console.error('Error loading mold masters:', err);
+    }
+  };
+
+  const handleExportExcel = () => {
+    try {
+      const exportData = shelves.flatMap(shelf => {
+        if (shelf.molds.length === 0) {
+          return [{
+            'Mã Kệ (Shelf ID)': shelf.id,
+            'Tên Kệ (Shelf Name)': shelf.name,
+            'Sức chứa tối đa (Max Capacity)': shelf.max_molds,
+            'Mã Khuôn (Mold ID)': 'Kệ trống',
+            'Size Khuôn (Mold Size)': '',
+            'Số lượng (Quantity)': 0,
+            'Thời gian đưa vào kệ (Scanned In)': ''
+          }];
+        }
+        return shelf.molds.map(mold => ({
+          'Mã Kệ (Shelf ID)': shelf.id,
+          'Tên Kệ (Shelf Name)': shelf.name,
+          'Sức chứa tối đa (Max Capacity)': shelf.max_molds,
+          'Mã Khuôn (Mold ID)': mold.mold_id,
+          'Size Khuôn (Mold Size)': mold.mold_size,
+          'Số lượng (Quantity)': mold.quantity,
+          'Thời gian đưa vào kệ (Scanned In)': mold.scanned_in_at 
+            ? new Date(mold.scanned_in_at).toLocaleString() 
+            : ''
+        }));
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Du_Lieu_Ke_Khuon');
+      XLSX.writeFile(wb, `Du_Lieu_Ke_Khuon_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (err: any) {
+      alert('Lỗi xuất Excel: ' + err.message);
     }
   };
 
@@ -616,6 +653,14 @@ export function MoldShelfDatabase() {
           >
             <Plus className="w-4 h-4" />
             <span>{t('addShelf')}</span>
+          </button>
+
+          <button 
+            onClick={handleExportExcel}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_4px_14px_rgba(16,185,129,0.4)] flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            <span>{t('exportExcel')}</span>
           </button>
         </div>
       </div>
