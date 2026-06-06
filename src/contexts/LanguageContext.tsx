@@ -168,6 +168,8 @@ const translations: Translations = {
   errTotalShelfExceedsOwned: { en: 'Total quantity on shelves and machines ({total}) would exceed total owned quantity ({owned}) in the Mold Database!', vi: 'Tổng số lượng khuôn trên kệ và máy ({total}) sẽ vượt quá số lượng sở hữu ({owned}) trong Dữ liệu Khuôn!' },
   moldsOnShelf: { en: 'Molds on Shelf:', vi: 'Khuôn có trên kệ:' },
   emptyShelf: { en: 'Shelf is empty (no molds)', vi: 'Kệ trống (không có khuôn)' },
+  moldsOnMachine: { en: 'Molds on Machine:', vi: 'Khuôn có trên máy:' },
+  emptyMachine: { en: 'Machine is empty (no molds)', vi: 'Máy trống (không có khuôn)' },
 };
 
 interface LanguageContextType {

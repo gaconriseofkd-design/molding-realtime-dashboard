@@ -861,6 +861,50 @@ export function ScanInOut() {
           </div>
         </div>
 
+        {selectedMachineId && (
+          <div className="flex flex-col gap-2 pt-2 border-t border-slate-700/30 animate-in fade-in slide-in-from-top-1 duration-200">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-14">
+              {t('moldsOnMachine')}
+            </p>
+            {runningMoldsOnMachine.length === 0 ? (
+              <p className="text-slate-500 text-xs italic pl-14 py-2">
+                {t('emptyMachine')}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2 pl-14">
+                {runningMoldsOnMachine.map((item) => {
+                  const isSelected = selectedMoldId === item.mold_id && selectedSize === item.mold_size;
+                  return (
+                    <button
+                      type="button"
+                      key={`${item.uuid || item.mold_id + '-' + item.mold_size}`}
+                      onClick={() => {
+                        setSelectedMoldId(item.mold_id);
+                        setSelectedSize(item.mold_size);
+                        setMoldSearchTerm(item.mold_id);
+                        updateRecentMolds(item.mold_id);
+                      }}
+                      className={`relative px-4 py-2 pt-5 rounded-xl text-xs font-bold transition-all border overflow-hidden flex flex-col items-center justify-center min-w-[90px] ${
+                        isSelected
+                          ? 'bg-indigo-500 text-white border-indigo-400 shadow-lg ring-2 ring-indigo-400/50 scale-105'
+                          : 'bg-slate-700/50 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-700'
+                      }`}
+                    >
+                      <span className={`absolute top-1 right-1 text-[9px] font-black px-1.5 py-0.5 rounded leading-none ${
+                          isSelected ? 'bg-black/30 text-white' : 'bg-slate-900/50 text-emerald-400 border border-emerald-500/20'
+                      }`}>
+                        {item.quantity}
+                      </span>
+                      <span className="font-extrabold text-sm tracking-wider">{item.mold_id}</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5 font-medium">{item.mold_size}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="h-px w-full bg-slate-700/50"></div>
 
         {/* Shelf Selection */}
