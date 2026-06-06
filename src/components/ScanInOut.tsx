@@ -20,6 +20,7 @@ export function ScanInOut() {
   const [selectedSize, setSelectedSize] = useState('');
   const [shelvesWithMolds, setShelvesWithMolds] = useState<any[]>([]);
   const [isLoadingShelves, setIsLoadingShelves] = useState(false);
+  const [showAllShelvesForScanIn, setShowAllShelvesForScanIn] = useState(false);
   
   const [moldSearchTerm, setMoldSearchTerm] = useState('');
   const [isSearchingMold, setIsSearchingMold] = useState(false);
@@ -47,6 +48,7 @@ export function ScanInOut() {
 
   useEffect(() => {
     selectedMoldRef.current = selectedMoldId;
+    setShowAllShelvesForScanIn(false);
     async function fetchStats() {
       if (!selectedMoldId) {
         setMoldSizeStats({});
@@ -319,6 +321,15 @@ export function ScanInOut() {
       ? !!(selectedMoldId && selectedSize) 
       : true;
   }, [scanType, isAdvancedScanOut, selectedMoldId, selectedSize]);
+
+  const shelvesToShow = useMemo(() => {
+    if (scanType === 'OUT' || showAllShelvesForScanIn) {
+      return shelvesWithMolds;
+    }
+    return shelvesWithMolds.filter(shelf => 
+      shelf.molds?.some((m: any) => m.mold_id === selectedMoldId)
+    );
+  }, [scanType, showAllShelvesForScanIn, shelvesWithMolds, selectedMoldId]);
 
   const returnMoldsToShelf = async (items: {mold_id: string, mold_size: string, quantity: number}[], shelfId: string) => {
     for (const item of items) {
@@ -1171,51 +1182,84 @@ export function ScanInOut() {
               <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-14">
-              {shelvesWithMolds.map((shelf) => {
-                const isSelected = selectedShelfId === shelf.id;
-                const totalQty = shelf.molds?.reduce((sum: number, m: any) => sum + (m.quantity || 0), 0) || 0;
-                
-                return (
-                  <button
-                    type="button"
-                    key={shelf.id}
-                    onClick={() => setSelectedShelfId(shelf.id)}
-                    className={`relative p-4 rounded-2xl text-left transition-all border flex flex-col justify-between min-h-[110px] cursor-pointer select-none active:scale-[0.98] ${
-                      isSelected
-                        ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)] ring-2 ring-indigo-400/50'
-                        : 'bg-slate-900/40 hover:bg-slate-800/60 border-slate-700 hover:border-slate-600'
-                    }`}
+            <div className="flex flex-col gap-3">
+              {scanType === 'IN' && !showAllShelvesForScanIn && shelvesToShow.length === 0 ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-rose-400 font-bold text-xs italic pl-14 py-1">
+                    {t('noShelvesContainingMold')}
+                  </p>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowAllShelvesForScanIn(true)} 
+                    className="self-start ml-14 text-xs text-indigo-400 hover:text-indigo-300 font-black underline bg-transparent border-0 cursor-pointer"
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="font-black text-sm text-white tracking-wider uppercase">{shelf.name}</span>
-                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                          isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-950/50 text-emerald-400 border border-emerald-500/20'
-                        }`}>
-                          Qty: {totalQty}
-                        </span>
-                      </div>
-
-                      {/* Molds on this shelf preview */}
-                      <div className="space-y-1 max-h-[60px] overflow-y-auto scrollbar-hide pr-1">
-                        {(!shelf.molds || shelf.molds.length === 0) ? (
-                          <p className="text-slate-500 text-[10px] italic">Kệ trống</p>
-                        ) : (
-                          shelf.molds.map((m: any, idx: number) => (
-                            <div key={idx} className="flex justify-between text-[10px] font-bold">
-                              <span className="text-slate-300 truncate mr-2">{m.mold_id}</span>
-                              <span className="text-indigo-300 font-mono text-[9px] bg-slate-950/60 px-1 py-0.1 rounded border border-slate-800 flex-shrink-0">
-                                {m.mold_size} <span className="text-emerald-400 font-extrabold">x{m.quantity}</span>
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                    {t('showAllShelves')}
                   </button>
-                );
-              })}
+                </div>
+              ) : (
+                <>
+                  {/* Cards container: scrollable when showing all shelves, otherwise auto-height */}
+                  <div className={(scanType === 'OUT' || showAllShelvesForScanIn) ? "max-h-[360px] overflow-y-auto scrollbar-thin pr-1" : ""}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-14 py-1">
+                      {shelvesToShow.map((shelf) => {
+                        const isSelected = selectedShelfId === shelf.id;
+                        const totalQty = shelf.molds?.reduce((sum: number, m: any) => sum + (m.quantity || 0), 0) || 0;
+                        
+                        return (
+                          <button
+                            type="button"
+                            key={shelf.id}
+                            onClick={() => setSelectedShelfId(shelf.id)}
+                            className={`relative p-4 rounded-2xl text-left transition-all border flex flex-col justify-between min-h-[110px] cursor-pointer select-none active:scale-[0.98] ${
+                              isSelected
+                                ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)] ring-2 ring-indigo-400/50'
+                                : 'bg-slate-900/40 hover:bg-slate-800/60 border-slate-700 hover:border-slate-600'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="font-black text-sm text-white tracking-wider uppercase">{shelf.name}</span>
+                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-950/50 text-emerald-400 border border-emerald-500/20'
+                                }`}>
+                                  Qty: {totalQty}
+                                </span>
+                              </div>
+
+                              {/* Molds on this shelf preview */}
+                              <div className="space-y-1 max-h-[60px] overflow-y-auto scrollbar-hide pr-1">
+                                {(!shelf.molds || shelf.molds.length === 0) ? (
+                                  <p className="text-slate-500 text-[10px] italic">Kệ trống</p>
+                                ) : (
+                                  shelf.molds.map((m: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between text-[10px] font-bold">
+                                      <span className="text-slate-300 truncate mr-2">{m.mold_id}</span>
+                                      <span className="text-indigo-300 font-mono text-[9px] bg-slate-950/60 px-1 py-0.1 rounded border border-slate-800 flex-shrink-0">
+                                        {m.mold_size} <span className="text-emerald-400 font-extrabold">x{m.quantity}</span>
+                                      </span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Toggle expand/collapse button for Scan IN */}
+                  {scanType === 'IN' && (
+                    <button 
+                      type="button" 
+                      onClick={() => setShowAllShelvesForScanIn(!showAllShelvesForScanIn)} 
+                      className="self-start ml-14 text-xs text-indigo-400 hover:text-indigo-300 font-black underline bg-transparent border-0 cursor-pointer transition-colors"
+                    >
+                      {showAllShelvesForScanIn ? t('showLessShelves') : `${t('showAllShelves')} (${shelvesWithMolds.length})`}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

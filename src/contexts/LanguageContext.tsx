@@ -171,6 +171,9 @@ const translations: Translations = {
   moldsOnMachine: { en: 'Molds on Machine:', vi: 'Khuôn có trên máy:' },
   emptyMachine: { en: 'Machine is empty (no molds)', vi: 'Máy trống (không có khuôn)' },
   selectShelfHint: { en: 'Select shelf to scan in/out', vi: 'Chọn kệ để scan vào/ra' },
+  noShelvesContainingMold: { en: 'No shelves contain the selected mold', vi: 'Không có kệ chứa khuôn đang chọn' },
+  showAllShelves: { en: 'Show all shelves', vi: 'Hiển thị tất cả kệ' },
+  showLessShelves: { en: 'Show filtered shelves only', vi: 'Thu gọn (Chỉ hiện kệ chứa khuôn)' },
 };
 
 interface LanguageContextType {
