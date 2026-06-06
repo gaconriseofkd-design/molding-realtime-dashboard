@@ -514,36 +514,38 @@ export function MoldShelfDatabase() {
         return;
       }
 
-      // Verify strict validations before saving
+      // Chỉ kiểm tra giới hạn số lượng sở hữu tối đa khi chúng ta TĂNG số lượng (delta > 0)
       try {
-        const { data: matchMaster, error: mastErr } = await supabase
-          .from('mold_master')
-          .select('id, size, total_owned')
-          .eq('id', mold.mold_id)
-          .eq('size', mold.mold_size)
-          .single();
-        
-        if (mastErr || !matchMaster) {
-          alert(`Lỗi: Khuôn ${mold.mold_id} (Size ${mold.mold_size}) không tồn tại trong Dữ liệu Khuôn!`);
-          return;
-        }
+        if (delta > 0) {
+          const { data: matchMaster, error: mastErr } = await supabase
+            .from('mold_master')
+            .select('id, size, total_owned')
+            .eq('id', mold.mold_id)
+            .eq('size', mold.mold_size)
+            .single();
+          
+          if (mastErr || !matchMaster) {
+            alert(`Lỗi: Khuôn ${mold.mold_id} (Size ${mold.mold_size}) không tồn tại trong Dữ liệu Khuôn!`);
+            return;
+          }
 
-        const { data: runningElsewhere, error: runErr } = await supabase
-          .from('running_molds')
-          .select('quantity')
-          .eq('mold_id', mold.mold_id)
-          .eq('mold_size', mold.mold_size)
-          .neq('machine_id', selectedShelf.id);
-        
-        if (runErr) throw runErr;
+          const { data: runningElsewhere, error: runErr } = await supabase
+            .from('running_molds')
+            .select('quantity')
+            .eq('mold_id', mold.mold_id)
+            .eq('mold_size', mold.mold_size)
+            .neq('machine_id', selectedShelf.id);
+          
+          if (runErr) throw runErr;
 
-        const elsewhereQty = (runningElsewhere || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
-        const totalProposed = elsewhereQty + targetQty;
-        const totalOwned = matchMaster.total_owned || 0;
+          const elsewhereQty = (runningElsewhere || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+          const totalProposed = elsewhereQty + targetQty;
+          const totalOwned = matchMaster.total_owned || 0;
 
-        if (totalProposed > totalOwned) {
-          alert(`Không thể tăng số lượng! Tổng số lượng khuôn trên kệ và máy (${totalProposed}) vượt quá số lượng sở hữu (${totalOwned}) của mã này.`);
-          return;
+          if (totalProposed > totalOwned) {
+            alert(`Không thể tăng số lượng! Tổng số lượng khuôn trên kệ và máy (${totalProposed}) vượt quá số lượng sở hữu (${totalOwned}) của mã này.`);
+            return;
+          }
         }
 
         // Perform update in DB
@@ -708,21 +710,29 @@ export function MoldShelfDatabase() {
             return;
           }
 
-          // Check owned capacity limit
-          const elsewhereQty = (runningElsewhere || [])
-            .filter(r => r.mold_id === edit.mold_id && r.mold_size === edit.mold_size)
-            .reduce((sum, item) => sum + (item.quantity || 0), 0);
+          // Tìm số lượng cũ của khuôn này trên kệ hiện tại
+          const originalItem = selectedShelf.molds.find(
+            m => m.mold_id === edit.mold_id && m.mold_size === edit.mold_size
+          );
+          const currentShelfQty = originalItem?.quantity || 0;
 
-          const totalProposed = elsewhereQty + edit.quantity;
-          const totalOwned = matchMaster.total_owned || 0;
+          // Chỉ kiểm tra giới hạn sở hữu nếu số lượng mới lớn hơn số lượng hiện tại trên kệ (tức là ta đang muốn tăng thêm khuôn mới)
+          if (edit.quantity > currentShelfQty) {
+            const elsewhereQty = (runningElsewhere || [])
+              .filter(r => r.mold_id === edit.mold_id && r.mold_size === edit.mold_size)
+              .reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-          if (totalProposed > totalOwned) {
-            alert(t('errTotalShelfExceedsOwned')
-              .replace('{total}', totalProposed.toString())
-              .replace('{owned}', totalOwned.toString())
-              || `Tổng số lượng khuôn ${edit.mold_id} (Size ${edit.mold_size}) trên kệ và máy (${totalProposed}) vượt quá số lượng hiện sở hữu (${totalOwned}) trong Dữ liệu khuôn! \n(Đang chạy ở máy/kệ khác: ${elsewhereQty}, Đề xuất nhập kệ này: ${edit.quantity})`);
-            setIsSavingStock(false);
-            return;
+            const totalProposed = elsewhereQty + edit.quantity;
+            const totalOwned = matchMaster.total_owned || 0;
+
+            if (totalProposed > totalOwned) {
+              alert(t('errTotalShelfExceedsOwned')
+                .replace('{total}', totalProposed.toString())
+                .replace('{owned}', totalOwned.toString())
+                || `Tổng số lượng khuôn ${edit.mold_id} (Size ${edit.mold_size}) trên kệ và máy (${totalProposed}) vượt quá số lượng hiện sở hữu (${totalOwned}) trong Dữ liệu khuôn! \n(Đang chạy ở máy/kệ khác: ${elsewhereQty}, Đề xuất nhập kệ này: ${edit.quantity})`);
+              setIsSavingStock(false);
+              return;
+            }
           }
         }
       }
