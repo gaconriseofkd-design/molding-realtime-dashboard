@@ -12,14 +12,14 @@ export function ScanInOut() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   
   const [machines, setMachines] = useState<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
-  const [shelves, setShelves] = useState<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
+
   const [molds, setMolds] = useState<{id: string, size: string, total_owned: number}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [selectedShelfId, setSelectedShelfId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
-  const [shelfMolds, setShelfMolds] = useState<{ mold_id: string; mold_size: string; quantity: number }[]>([]);
-  const [isLoadingShelfMolds, setIsLoadingShelfMolds] = useState(false);
+  const [shelvesWithMolds, setShelvesWithMolds] = useState<any[]>([]);
+  const [isLoadingShelves, setIsLoadingShelves] = useState(false);
   
   const [moldSearchTerm, setMoldSearchTerm] = useState('');
   const [isSearchingMold, setIsSearchingMold] = useState(false);
@@ -44,10 +44,6 @@ export function ScanInOut() {
       setMachineCapacity(null);
     }
   }, [selectedMachineId]);
-
-  useEffect(() => {
-    fetchMoldsOnShelf(selectedShelfId);
-  }, [selectedShelfId]);
 
   useEffect(() => {
     selectedMoldRef.current = selectedMoldId;
@@ -113,13 +109,38 @@ export function ScanInOut() {
   }, []);
 
   const fetchMachinesAndShelves = async () => {
-    const { data: mData } = await supabase.from('machines').select('id, name, max_molds, operational_status').order('id');
-    if (mData) {
-      const machinesOnly = mData.filter(m => !m.id.startsWith('SHELF-'));
-      const shelvesOnly = mData.filter(m => m.id.startsWith('SHELF-'));
-      setMachines(machinesOnly);
-      machinesRef.current = machinesOnly;
-      setShelves(shelvesOnly);
+    setIsLoadingShelves(true);
+    try {
+      const { data: mData } = await supabase.from('machines').select('id, name, max_molds, operational_status').order('id');
+      if (mData) {
+        const machinesOnly = mData.filter(m => !m.id.startsWith('SHELF-'));
+        const shelvesOnly = mData.filter(m => m.id.startsWith('SHELF-'));
+        setMachines(machinesOnly);
+        machinesRef.current = machinesOnly;
+
+        // Fetch running molds on shelves
+        const shelfIds = shelvesOnly.map(s => s.id);
+        if (shelfIds.length > 0) {
+          const { data: rData, error: rErr } = await supabase
+            .from('running_molds')
+            .select('mold_id, mold_size, quantity, machine_id')
+            .in('machine_id', shelfIds);
+
+          if (rErr) throw rErr;
+
+          const mapped = shelvesOnly.map(shelf => ({
+            ...shelf,
+            molds: (rData || []).filter(r => r.machine_id === shelf.id)
+          }));
+          setShelvesWithMolds(mapped);
+        } else {
+          setShelvesWithMolds([]);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching machines and shelves:', err);
+    } finally {
+      setIsLoadingShelves(false);
     }
   };
 
@@ -160,27 +181,6 @@ export function ScanInOut() {
     const current = running?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
     const max = machine?.max_molds || 12;
     setMachineCapacity({ current, max });
-  };
-
-  const fetchMoldsOnShelf = async (shelfId: string) => {
-    if (!shelfId) {
-      setShelfMolds([]);
-      return;
-    }
-    setIsLoadingShelfMolds(true);
-    try {
-      const { data, error } = await supabase
-        .from('running_molds')
-        .select('mold_id, mold_size, quantity')
-        .eq('machine_id', shelfId);
-      
-      if (error) throw error;
-      setShelfMolds(data || []);
-    } catch (err) {
-      console.error('Error fetching molds on shelf:', err);
-    } finally {
-      setIsLoadingShelfMolds(false);
-    }
   };
 
   const stopScanner = async () => {
@@ -314,6 +314,12 @@ export function ScanInOut() {
 
   const isExceeding = scanType === 'IN' && selectedSize && qty > availableQty;
 
+  const isShelfSelectionEnabled = useMemo(() => {
+    return (scanType === 'IN' || !isAdvancedScanOut) 
+      ? !!(selectedMoldId && selectedSize) 
+      : true;
+  }, [scanType, isAdvancedScanOut, selectedMoldId, selectedSize]);
+
   const returnMoldsToShelf = async (items: {mold_id: string, mold_size: string, quantity: number}[], shelfId: string) => {
     for (const item of items) {
       const { data: sData, error: sErr } = await supabase
@@ -438,7 +444,7 @@ export function ScanInOut() {
         }
         setShowSuccess(true);
         fetchMachineCapacity(selectedMachineId);
-        if (selectedShelfId) fetchMoldsOnShelf(selectedShelfId);
+        fetchMachinesAndShelves();
         setSelectedScanOutItems({});
         setTimeout(() => setShowSuccess(false), 2000);
       } catch (e: any) {
@@ -660,7 +666,7 @@ export function ScanInOut() {
 
       setShowSuccess(true);
       if (selectedMachineId) fetchMachineCapacity(selectedMachineId); // Refresh UI capacity
-      if (selectedShelfId) fetchMoldsOnShelf(selectedShelfId); // Refresh shelf molds
+      fetchMachinesAndShelves(); // Refresh shelves and machines inventory
       
       // Update local size stats to immediately reflect the scan action in the x/y label
       setMoldSizeStats(prev => {
@@ -905,89 +911,7 @@ export function ScanInOut() {
           </div>
         )}
 
-        <div className="h-px w-full bg-slate-700/50"></div>
 
-        {/* Shelf Selection */}
-        <div className="flex items-center gap-4 transition-all duration-300">
-          <div className="p-3 rounded-xl border bg-slate-700/50 border-slate-600 transition-colors">
-            <Package className="w-6 h-6 text-slate-500" />
-          </div>
-          <div className="flex-1 text-left relative">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('selectShelf')}</p>
-            <div className="flex gap-2">
-              <select 
-                value={selectedShelfId}
-                onChange={(e) => setSelectedShelfId(e.target.value)}
-                className="flex-1 bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer transition-all"
-              >
-                <option value="">{t('shelfPlaceholder')}</option>
-                {shelves.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.id})
-                  </option>
-                ))}
-              </select>
-              {selectedShelfId && (
-                <button 
-                  onClick={() => setSelectedShelfId('')}
-                  className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {selectedShelfId && (
-          <div className="flex flex-col gap-2 pt-2 border-t border-slate-700/30 animate-in fade-in slide-in-from-top-1 duration-200">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-14">
-              {t('moldsOnShelf')}
-            </p>
-            {isLoadingShelfMolds ? (
-              <div className="flex items-center justify-center py-4 pl-14">
-                <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
-              </div>
-            ) : shelfMolds.length === 0 ? (
-              <p className="text-slate-500 text-xs italic pl-14 py-2">
-                {t('emptyShelf')}
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2 pl-14">
-                {shelfMolds.map((item) => {
-                  const isSelected = selectedMoldId === item.mold_id && selectedSize === item.mold_size;
-                  return (
-                    <button
-                      type="button"
-                      key={`${item.mold_id}-${item.mold_size}`}
-                      onClick={() => {
-                        setSelectedMoldId(item.mold_id);
-                        setSelectedSize(item.mold_size);
-                        setMoldSearchTerm(item.mold_id);
-                        updateRecentMolds(item.mold_id);
-                      }}
-                      className={`relative px-4 py-2 pt-5 rounded-xl text-xs font-bold transition-all border overflow-hidden flex flex-col items-center justify-center min-w-[90px] ${
-                        isSelected
-                          ? 'bg-indigo-500 text-white border-indigo-400 shadow-lg ring-2 ring-indigo-400/50 scale-105'
-                          : 'bg-slate-700/50 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-700'
-                      }`}
-                    >
-                      <span className={`absolute top-1 right-1 text-[9px] font-black px-1.5 py-0.5 rounded leading-none ${
-                          isSelected ? 'bg-black/30 text-white' : 'bg-slate-900/50 text-emerald-400 border border-emerald-500/20'
-                      }`}>
-                        {item.quantity}
-                      </span>
-                      <span className="font-extrabold text-sm tracking-wider">{item.mold_id}</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5 font-medium">{item.mold_size}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="h-px w-full bg-slate-700/50"></div>
 
         {scanType === 'OUT' && selectedMachineId && (
           <div className="flex flex-col gap-3 py-2">
@@ -1218,6 +1142,83 @@ export function ScanInOut() {
         </div>
           </>
         )}
+
+        {/* Shelf Selection Card Grid */}
+        <div className="h-px w-full bg-slate-700/50"></div>
+
+        <div className={`flex flex-col gap-3 transition-opacity duration-300 ${!isShelfSelectionEnabled ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
+          <div className="flex items-center gap-4">
+            <div className="bg-indigo-500/20 p-3 rounded-xl border border-indigo-500/10 flex-shrink-0">
+              <Package className="w-6 h-6 text-indigo-400" />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('selectShelf')}</p>
+              <p className="text-[11px] text-slate-400 font-medium">{t('selectShelfHint')}</p>
+            </div>
+            {selectedShelfId && (
+              <button 
+                type="button"
+                onClick={() => setSelectedShelfId('')}
+                className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors shadow-sm"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {isLoadingShelves ? (
+            <div className="flex items-center justify-center py-8 pl-14">
+              <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-14">
+              {shelvesWithMolds.map((shelf) => {
+                const isSelected = selectedShelfId === shelf.id;
+                const totalQty = shelf.molds?.reduce((sum: number, m: any) => sum + (m.quantity || 0), 0) || 0;
+                
+                return (
+                  <button
+                    type="button"
+                    key={shelf.id}
+                    onClick={() => setSelectedShelfId(shelf.id)}
+                    className={`relative p-4 rounded-2xl text-left transition-all border flex flex-col justify-between min-h-[110px] cursor-pointer select-none active:scale-[0.98] ${
+                      isSelected
+                        ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)] ring-2 ring-indigo-400/50'
+                        : 'bg-slate-900/40 hover:bg-slate-800/60 border-slate-700 hover:border-slate-600'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-black text-sm text-white tracking-wider uppercase">{shelf.name}</span>
+                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-950/50 text-emerald-400 border border-emerald-500/20'
+                        }`}>
+                          Qty: {totalQty}
+                        </span>
+                      </div>
+
+                      {/* Molds on this shelf preview */}
+                      <div className="space-y-1 max-h-[60px] overflow-y-auto scrollbar-hide pr-1">
+                        {(!shelf.molds || shelf.molds.length === 0) ? (
+                          <p className="text-slate-500 text-[10px] italic">Kệ trống</p>
+                        ) : (
+                          shelf.molds.map((m: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-[10px] font-bold">
+                              <span className="text-slate-300 truncate mr-2">{m.mold_id}</span>
+                              <span className="text-indigo-300 font-mono text-[9px] bg-slate-950/60 px-1 py-0.1 rounded border border-slate-800 flex-shrink-0">
+                                {m.mold_size} <span className="text-emerald-400 font-extrabold">x{m.quantity}</span>
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Scan Actions & Quantity */}

@@ -170,6 +170,7 @@ const translations: Translations = {
   emptyShelf: { en: 'Shelf is empty (no molds)', vi: 'Kệ trống (không có khuôn)' },
   moldsOnMachine: { en: 'Molds on Machine:', vi: 'Khuôn có trên máy:' },
   emptyMachine: { en: 'Machine is empty (no molds)', vi: 'Máy trống (không có khuôn)' },
+  selectShelfHint: { en: 'Select shelf to scan in/out', vi: 'Chọn kệ để scan vào/ra' },
 };
 
 interface LanguageContextType {
