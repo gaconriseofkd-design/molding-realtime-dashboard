@@ -174,7 +174,6 @@ export function MoldShelfDatabase() {
           return [{
             'Mã Kệ (Shelf ID)': shelf.id,
             'Tên Kệ (Shelf Name)': shelf.name,
-            'Sức chứa tối đa (Max Capacity)': shelf.max_molds,
             'Mã Khuôn (Mold ID)': 'Kệ trống',
             'Size Khuôn (Mold Size)': '',
             'Số lượng (Quantity)': 0,
@@ -184,7 +183,6 @@ export function MoldShelfDatabase() {
         return shelf.molds.map(mold => ({
           'Mã Kệ (Shelf ID)': shelf.id,
           'Tên Kệ (Shelf Name)': shelf.name,
-          'Sức chứa tối đa (Max Capacity)': shelf.max_molds,
           'Mã Khuôn (Mold ID)': mold.mold_id,
           'Size Khuôn (Mold Size)': mold.mold_size,
           'Số lượng (Quantity)': mold.quantity,
