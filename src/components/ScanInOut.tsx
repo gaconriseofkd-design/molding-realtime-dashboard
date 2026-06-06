@@ -492,7 +492,7 @@ export function ScanInOut() {
           }
         }
 
-        // Verify shelf quantity if shelf is selected
+        // Verify shelf quantity if shelf is selected (non-blocking fallback)
         let shelfExisting = null;
         if (selectedShelfId) {
           const { data: sData, error: sErr } = await supabase
@@ -504,17 +504,9 @@ export function ScanInOut() {
             .maybeSingle();
 
           if (sErr) throw sErr;
-          if (!sData) {
-            alert(t('errShelfMoldNotFound'));
-            setIsSubmitting(false);
-            return;
+          if (sData) {
+            shelfExisting = sData;
           }
-          if ((sData.quantity || 0) < scanQty) {
-            alert(`${t('errShelfMoldQtyInsuff')} (Kệ hiện có: ${sData.quantity || 0})`);
-            setIsSubmitting(false);
-            return;
-          }
-          shelfExisting = sData;
         }
 
         const newQty = (existing?.quantity || 0) + scanQty;
