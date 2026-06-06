@@ -63,10 +63,14 @@ export function ScanInOut() {
 
       const { data } = await supabase
         .from('running_molds')
-        .select('mold_size, quantity')
+        .select('machine_id, mold_size, quantity')
         .eq('mold_id', selectedMoldId);
 
       data?.forEach(r => {
+        // Bỏ qua khuôn đang nằm trên kệ, chỉ tính khuôn đang chạy trên máy thực tế
+        if (r.machine_id && r.machine_id.startsWith('SHELF-')) {
+          return;
+        }
         if (stats[r.mold_size]) {
           stats[r.mold_size].running += (r.quantity || 0);
         }
@@ -495,7 +499,7 @@ export function ScanInOut() {
 
       const allRunningForMoldRes = await supabase
         .from('running_molds')
-        .select('quantity')
+        .select('machine_id, quantity')
         .eq('mold_id', selectedMoldId)
         .eq('mold_size', selectedSize);
 
@@ -540,7 +544,10 @@ export function ScanInOut() {
         // Only run this check if the mold exists in mold_master
         if (moldMasterRes.data) {
           const totalOwned = moldMasterRes.data.total_owned || 0;
-          const totalCurrentlyRunning = (allRunningForMoldRes.data || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+          // Loại trừ số lượng khuôn đang lưu trên kệ khi kiểm tra giới hạn đang chạy trên máy
+          const totalCurrentlyRunning = (allRunningForMoldRes.data || [])
+            .filter(item => !item.machine_id?.startsWith('SHELF-'))
+            .reduce((sum, item) => sum + (item.quantity || 0), 0);
           
           if (totalCurrentlyRunning + scanQty > totalOwned) {
             const warningMsg = t('errMoldQtyExceeded')
