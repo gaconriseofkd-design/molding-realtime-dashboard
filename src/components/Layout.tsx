@@ -1,6 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LayoutDashboard, ScanBarcode, Database, Server, Globe } from 'lucide-react';
+import { LayoutDashboard, ScanBarcode, Database, Server, Globe, Archive } from 'lucide-react';
 
 export function Layout() {
   const { language, setLanguage, t } = useLanguage();
@@ -8,6 +8,7 @@ export function Layout() {
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: t('liveDashboard') },
     { to: '/scan', icon: ScanBarcode, label: t('scanInOut') },
+    { to: '/shelves', icon: Archive, label: t('moldShelfData') },
     { to: '/database', icon: Database, label: t('moldDatabase') },
     { to: '/machines', icon: Server, label: t('machineDatabase') },
   ];

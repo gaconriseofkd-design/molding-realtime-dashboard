@@ -141,8 +141,10 @@ export function LiveDashboard() {
       const runningData = allRunningData;
 
       // 3. Transform and Compute
-      const transformedMachines: Machine[] = machinesData.map(m => {
-        const moldsRunningOnThisMachine = (runningData || [])
+      const transformedMachines: Machine[] = machinesData
+        .filter((m: any) => !m.id.startsWith('SHELF-'))
+        .map(m => {
+          const moldsRunningOnThisMachine = (runningData || [])
           .filter(r => r.machine_id === m.id)
           .map(r => ({
             id: r.mold_id,

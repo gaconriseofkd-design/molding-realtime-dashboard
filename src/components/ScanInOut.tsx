@@ -12,8 +12,10 @@ export function ScanInOut() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   
   const [machines, setMachines] = useState<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
+  const [shelves, setShelves] = useState<{id: string, name: string, max_molds: number, operational_status: string}[]>([]);
   const [molds, setMolds] = useState<{id: string, size: string, total_owned: number}[]>([]);
   const [selectedMachineId, setSelectedMachineId] = useState('');
+  const [selectedShelfId, setSelectedShelfId] = useState('');
   const [selectedMoldId, setSelectedMoldId] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   
@@ -98,8 +100,11 @@ export function ScanInOut() {
   const fetchMeta = async () => {
     const { data: mData } = await supabase.from('machines').select('id, name, max_molds, operational_status').order('id');
     if (mData) {
-      setMachines(mData);
-      machinesRef.current = mData;
+      const machinesOnly = mData.filter(m => !m.id.startsWith('SHELF-'));
+      const shelvesOnly = mData.filter(m => m.id.startsWith('SHELF-'));
+      setMachines(machinesOnly);
+      machinesRef.current = machinesOnly;
+      setShelves(shelvesOnly);
     }
 
     let allMoldsData: {id: string, size: string, total_owned: number}[] = [];
@@ -269,6 +274,39 @@ export function ScanInOut() {
 
   const isExceeding = scanType === 'IN' && selectedSize && qty > availableQty;
 
+  const returnMoldsToShelf = async (items: {mold_id: string, mold_size: string, quantity: number}[], shelfId: string) => {
+    for (const item of items) {
+      const { data: sData, error: sErr } = await supabase
+        .from('running_molds')
+        .select('quantity, uuid')
+        .eq('machine_id', shelfId)
+        .eq('mold_id', item.mold_id)
+        .eq('mold_size', item.mold_size)
+        .maybeSingle();
+
+      if (sErr) throw sErr;
+
+      if (sData) {
+        const { error: updErr } = await supabase
+          .from('running_molds')
+          .update({ quantity: (sData.quantity || 0) + item.quantity })
+          .eq('uuid', sData.uuid);
+        if (updErr) throw updErr;
+      } else {
+        const { error: insErr } = await supabase
+          .from('running_molds')
+          .insert({
+            machine_id: shelfId,
+            mold_id: item.mold_id,
+            mold_size: item.mold_size,
+            quantity: item.quantity,
+            scanned_in_at: new Date().toISOString()
+          });
+        if (insErr) throw insErr;
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedMachineId) {
       setValidationError(t('scanMachineFirst'));
@@ -296,6 +334,15 @@ export function ScanInOut() {
               setIsSubmitting(false);
               return;
            }
+
+            // If shelf is selected, return all molds to shelf
+            if (selectedShelfId) {
+              await returnMoldsToShelf(
+                runningMoldsOnMachine.map(r => ({ mold_id: r.mold_id, mold_size: r.mold_size, quantity: r.quantity })),
+                selectedShelfId
+              );
+            }
+
             const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
             if (error) throw error;
             
@@ -320,6 +367,17 @@ export function ScanInOut() {
               setIsSubmitting(false);
               return;
            }
+
+            const selectedItems = runningMoldsOnMachine.filter(r => selectedScanOutItems[r.uuid]);
+
+            // If shelf is selected, return selected molds to shelf
+            if (selectedShelfId) {
+              await returnMoldsToShelf(
+                selectedItems.map(r => ({ mold_id: r.mold_id, mold_size: r.mold_size, quantity: r.quantity })),
+                selectedShelfId
+              );
+            }
+
             const { error } = await supabase.from('running_molds').delete().in('uuid', uuids);
             if (error) throw error;
             
@@ -328,7 +386,6 @@ export function ScanInOut() {
             const currentLoadPercent = Math.round((currentTotalLoad / maxMolds) * 100);
 
             // Log history for selected items
-            const selectedItems = runningMoldsOnMachine.filter(r => selectedScanOutItems[r.uuid]);
             const logs = selectedItems.map(r => ({
               machine_id: selectedMachineId,
               mold_id: r.mold_id,
@@ -435,6 +492,31 @@ export function ScanInOut() {
           }
         }
 
+        // Verify shelf quantity if shelf is selected
+        let shelfExisting = null;
+        if (selectedShelfId) {
+          const { data: sData, error: sErr } = await supabase
+            .from('running_molds')
+            .select('quantity, uuid')
+            .eq('machine_id', selectedShelfId)
+            .eq('mold_id', selectedMoldId)
+            .eq('mold_size', selectedSize)
+            .maybeSingle();
+
+          if (sErr) throw sErr;
+          if (!sData) {
+            alert(t('errShelfMoldNotFound'));
+            setIsSubmitting(false);
+            return;
+          }
+          if ((sData.quantity || 0) < scanQty) {
+            alert(`${t('errShelfMoldQtyInsuff')} (Kệ hiện có: ${sData.quantity || 0})`);
+            setIsSubmitting(false);
+            return;
+          }
+          shelfExisting = sData;
+        }
+
         const newQty = (existing?.quantity || 0) + scanQty;
         const { error } = await supabase
           .from('running_molds')
@@ -447,6 +529,24 @@ export function ScanInOut() {
           }, { onConflict: 'machine_id, mold_id, mold_size' });
 
         if (error) throw error;
+
+        // Decrement from shelf if shelf is selected
+        if (selectedShelfId && shelfExisting) {
+          const newShelfQty = shelfExisting.quantity - scanQty;
+          if (newShelfQty <= 0) {
+            const { error: delErr } = await supabase
+              .from('running_molds')
+              .delete()
+              .eq('uuid', shelfExisting.uuid);
+            if (delErr) throw delErr;
+          } else {
+            const { error: updErr } = await supabase
+              .from('running_molds')
+              .update({ quantity: newShelfQty })
+              .eq('uuid', shelfExisting.uuid);
+            if (updErr) throw updErr;
+          }
+        }
 
         // Log history with current load (AFTER scan in)
         const loadPercent = Math.round(((currentTotal + scanQty) / maxMolds) * 100);
@@ -478,6 +578,39 @@ export function ScanInOut() {
             .update({ quantity: newQty })
             .eq('uuid', existing.uuid);
           if (error) throw error;
+        }
+
+        // Increment/upsert on shelf if shelf is selected
+        if (selectedShelfId) {
+          const { data: sData, error: sErr } = await supabase
+            .from('running_molds')
+            .select('quantity, uuid')
+            .eq('machine_id', selectedShelfId)
+            .eq('mold_id', selectedMoldId)
+            .eq('mold_size', selectedSize)
+            .maybeSingle();
+
+          if (sErr) throw sErr;
+
+          if (sData) {
+            const newShelfQty = (sData.quantity || 0) + scanQty;
+            const { error: updErr } = await supabase
+              .from('running_molds')
+              .update({ quantity: newShelfQty })
+              .eq('uuid', sData.uuid);
+            if (updErr) throw updErr;
+          } else {
+            const { error: insErr } = await supabase
+              .from('running_molds')
+              .insert({
+                machine_id: selectedShelfId,
+                mold_id: selectedMoldId,
+                mold_size: selectedSize,
+                quantity: scanQty,
+                scanned_in_at: new Date().toISOString()
+              });
+            if (insErr) throw insErr;
+          }
         }
 
         // Log history with current load (AFTER scan out)
@@ -665,6 +798,7 @@ export function ScanInOut() {
                     setSelectedMachineId(''); 
                     setSelectedMoldId(''); 
                     setSelectedSize('');
+                    setSelectedShelfId('');
                   }}
                   className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
                 >
@@ -690,6 +824,40 @@ export function ScanInOut() {
                 </div>
               </motion.div>
             )}
+          </div>
+        </div>
+
+        <div className="h-px w-full bg-slate-700/50"></div>
+
+        {/* Shelf Selection */}
+        <div className="flex items-center gap-4 transition-all duration-300">
+          <div className="p-3 rounded-xl border bg-slate-700/50 border-slate-600 transition-colors">
+            <Package className="w-6 h-6 text-slate-500" />
+          </div>
+          <div className="flex-1 text-left relative">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{t('selectShelf')}</p>
+            <div className="flex gap-2">
+              <select 
+                value={selectedShelfId}
+                onChange={(e) => setSelectedShelfId(e.target.value)}
+                className="flex-1 bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-2 text-white font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer transition-all"
+              >
+                <option value="">{t('shelfPlaceholder')}</option>
+                {shelves.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.id})
+                  </option>
+                ))}
+              </select>
+              {selectedShelfId && (
+                <button 
+                  onClick={() => setSelectedShelfId('')}
+                  className="p-2 bg-slate-700/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-600 transition-colors"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

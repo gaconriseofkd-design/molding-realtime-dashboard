@@ -153,6 +153,19 @@ const translations: Translations = {
   delete: { en: 'Delete', vi: 'Xóa' },
   confirmDeleteMachine: { en: 'Are you sure you want to delete this machine? This action cannot be undone.', vi: 'Bạn có chắc chắn muốn xóa máy này không? Hành động này không thể hoàn tác.' },
   errMachineHasRunningMolds: { en: 'Cannot delete machine because it has molds currently running on it.', vi: 'Không thể xóa máy vì hiện đang có khuôn chạy trên máy này.' },
+  moldShelfData: { en: 'Mold Shelf Data', vi: 'Dữ liệu Kệ khuôn' },
+  selectShelf: { en: 'Select Shelf', vi: 'Chọn Kệ khuôn' },
+  shelf: { en: 'Shelf', vi: 'Kệ' },
+  shelfPlaceholder: { en: '-- Select Shelf --', vi: '-- Chọn Kệ chứa --' },
+  errShelfMoldNotFound: { en: 'Mold not found on selected shelf!', vi: 'Không tìm thấy khuôn này trên kệ đã chọn!' },
+  errShelfMoldQtyInsuff: { en: 'Insufficient mold quantity on selected shelf!', vi: 'Không đủ số lượng khuôn này trên kệ đã chọn!' },
+  addShelf: { en: 'Add New Shelf', vi: 'Thêm Kệ Mới' },
+  confirmDeleteShelf: { en: 'Are you sure you want to delete this shelf? This action cannot be undone.', vi: 'Bạn có chắc chắn muốn xóa kệ này không? Hành động này không thể hoàn tác.' },
+  shelfCapacity: { en: 'Shelf Capacity', vi: 'Sức chứa tối đa' },
+  shelfName: { en: 'Shelf Name', vi: 'Tên Kệ' },
+  searchShelfPlaceholder: { en: 'Search mold code on shelves...', vi: 'Nhập mã khuôn để tìm vị trí kệ chứa...' },
+  errMoldNotInDatabase: { en: 'Mold ID and Size do not exist in the Mold Database. Please add it there first!', vi: 'Mã khuôn và Size này chưa tồn tại trong Dữ liệu Khuôn. Vui lòng thêm vào đó trước!' },
+  errTotalShelfExceedsOwned: { en: 'Total quantity on shelves and machines ({total}) would exceed total owned quantity ({owned}) in the Mold Database!', vi: 'Tổng số lượng khuôn trên kệ và máy ({total}) sẽ vượt quá số lượng sở hữu ({owned}) trong Dữ liệu Khuôn!' },
 };
 
 interface LanguageContextType {

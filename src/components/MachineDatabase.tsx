@@ -173,8 +173,9 @@ export function MachineDatabase() {
   }
 
   const filtered = machines.filter(m => 
-    m.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    !m.id.startsWith('SHELF-') &&
+    (m.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     m.name?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
