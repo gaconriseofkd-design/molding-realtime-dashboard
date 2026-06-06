@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
-import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download, History, Clock, LogIn, LogOut } from 'lucide-react';
+import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download, LogIn, LogOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,13 +22,6 @@ interface ShelfScanLog {
   machine_id: string;
 }
 
-interface MoldHistoryEntry {
-  shelf_id: string;
-  shelf_name: string;
-  action_type: 'IN' | 'OUT';
-  quantity: number;
-  created_at: string;
-}
 
 interface Shelf {
   id: string;
@@ -75,18 +68,9 @@ export function MoldShelfDatabase() {
   // Shelf scan log timestamps (for last scan in/out per mold per shelf)
   const [shelfScanLogs, setShelfScanLogs] = useState<ShelfScanLog[]>([]);
 
-  // Mold history query modal
-  const [isMoldHistoryOpen, setIsMoldHistoryOpen] = useState(false);
-  const [historyMoldId, setHistoryMoldId] = useState('');
-  const [historyMoldSize, setHistoryMoldSize] = useState('');
-  const [moldHistoryData, setMoldHistoryData] = useState<MoldHistoryEntry[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [historySearched, setHistorySearched] = useState(false);
-
   // Autocomplete states
   const [moldMasterList, setMoldMasterList] = useState<{ id: string; size: string }[]>([]);
   const [focusedRowIdx, setFocusedRowIdx] = useState<number | null>(null);
-  const [historyFocused, setHistoryFocused] = useState(false);
 
   // Load and subscribe
   useEffect(() => {
@@ -235,76 +219,129 @@ export function MoldShelfDatabase() {
     return log?.created_at;
   };
 
-  // Fetch mold history across all shelves for the history query modal
-  const fetchMoldShelfHistory = async () => {
-    const moldIdTrimmed = historyMoldId.trim().toUpperCase();
-    if (!moldIdTrimmed) {
-      alert('Vui lòng nhập mã khuôn!');
-      return;
-    }
-    setIsLoadingHistory(true);
-    setHistorySearched(true);
+  // Xuất Excel báo cáo lịch sử di chuyển toàn bộ khuôn
+  const handleExportMovementHistoryExcel = async () => {
     try {
-      // Get all shelf IDs
-      const shelfIds = shelves.map(s => s.id);
+      setIsLoading(true);
 
-      // Query scan_logs for this mold across all shelves
-      let query = supabase
-        .from('scan_logs')
-        .select('machine_id, mold_id, mold_size, action_type, quantity, created_at')
-        .eq('mold_id', moldIdTrimmed)
-        .in('machine_id', shelfIds)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (historyMoldSize.trim()) {
-        query = query.eq('mold_size', historyMoldSize.trim());
+      // 1. Fetch all mold masters
+      let allMoldsData: {id: string, size: string}[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('mold_master')
+          .select('id, size')
+          .order('id')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error || !data || data.length === 0) break;
+        allMoldsData = [...allMoldsData, ...data];
+        if (data.length < pageSize) break;
+        page++;
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      // 2. Fetch all shelves to map IDs to Names
+      const { data: shelfMachines, error: mErr } = await supabase
+        .from('machines')
+        .select('id, name')
+        .like('id', 'SHELF-%');
+      if (mErr) throw mErr;
+      const shelfMap = Object.fromEntries((shelfMachines || []).map(s => [s.id, s.name]));
 
-      // Map machine_id to shelf name
-      const shelfMap = Object.fromEntries(shelves.map(s => [s.id, s.name]));
+      // 3. Fetch all running molds on shelves to determine current shelf storage
+      const { data: runningOnShelves, error: rErr } = await supabase
+        .from('running_molds')
+        .select('machine_id, mold_id, mold_size, quantity')
+        .like('machine_id', 'SHELF-%');
+      if (rErr) throw rErr;
 
-      const entries: MoldHistoryEntry[] = (data || []).map(d => ({
-        shelf_id: d.machine_id,
-        shelf_name: shelfMap[d.machine_id] || d.machine_id,
-        action_type: d.action_type,
-        quantity: d.quantity || 0,
-        created_at: d.created_at
-      }));
+      // Group current shelf storage by mold_id + mold_size
+      const currentStorageMap = new Map<string, string>();
+      (runningOnShelves || []).forEach(r => {
+        const key = `${r.mold_id}|${r.mold_size}`;
+        const shelfName = shelfMap[r.machine_id] || r.machine_id;
+        const info = `${shelfName} (x${r.quantity})`;
+        if (currentStorageMap.has(key)) {
+          currentStorageMap.set(key, `${currentStorageMap.get(key)}, ${info}`);
+        } else {
+          currentStorageMap.set(key, info);
+        }
+      });
 
-      setMoldHistoryData(entries);
-    } catch (err: any) {
-      console.error('Error fetching mold shelf history:', err);
-      alert('Lỗi truy vấn lịch sử: ' + err.message);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
+      // 4. Fetch all scan logs for shelves to find the latest IN and OUT
+      // Get up to 5000 logs to ensure quick download
+      let allLogs: any[] = [];
+      let logPage = 0;
+      const logPageSize = 1000;
+      while (logPage < 5) {
+        const { data, error } = await supabase
+          .from('scan_logs')
+          .select('machine_id, mold_id, mold_size, action_type, created_at')
+          .like('machine_id', 'SHELF-%')
+          .order('created_at', { ascending: false })
+          .range(logPage * logPageSize, (logPage + 1) * logPageSize - 1);
+        
+        if (error || !data || data.length === 0) break;
+        allLogs = [...allLogs, ...data];
+        if (data.length < logPageSize) break;
+        logPage++;
+      }
 
-  // Export mold history to Excel
-  const handleExportHistoryExcel = () => {
-    if (moldHistoryData.length === 0) return;
-    try {
-      const exportData = moldHistoryData.map(entry => ({
-        'Mã Khuôn (Mold ID)': historyMoldId,
-        'Size Khuôn (Mold Size)': historyMoldSize || '(tất cả size)',
-        'Kệ (Shelf)': entry.shelf_name,
-        'Mã Kệ (Shelf ID)': entry.shelf_id,
-        'Hành động (Action)': entry.action_type === 'IN' ? 'Scan In' : 'Scan Out',
-        'Số lượng (Quantity)': entry.quantity,
-        'Thời điểm (Timestamp)': new Date(entry.created_at).toLocaleString('vi-VN')
-      }));
+      // Map to keep track of latest scan IN and OUT per mold_id + mold_size
+      const latestInMap = new Map<string, { time: string, shelf: string }>();
+      const latestOutMap = new Map<string, { time: string, shelf: string }>();
 
+      allLogs.forEach(log => {
+        const key = `${log.mold_id}|${log.mold_size}`;
+        const shelfName = shelfMap[log.machine_id] || log.machine_id;
+        if (log.action_type === 'IN' && !latestInMap.has(key)) {
+          latestInMap.set(key, { time: log.created_at, shelf: shelfName });
+        } else if (log.action_type === 'OUT' && !latestOutMap.has(key)) {
+          latestOutMap.set(key, { time: log.created_at, shelf: shelfName });
+        }
+      });
+
+      // 5. Build export data row by row
+      const exportData = allMoldsData.map(mold => {
+        const key = `${mold.id}|${mold.size}`;
+        const currentShelf = currentStorageMap.get(key) || 'Trống (Không có trên kệ)';
+        
+        const latestIn = latestInMap.get(key);
+        const latestOut = latestOutMap.get(key);
+
+        return {
+          'Mã Khuôn (Mold ID)': mold.id,
+          'Size Khuôn (Mold Size)': mold.size,
+          'Kệ hiện tại đang lưu trữ': currentShelf,
+          'Kệ scan in gần nhất': latestIn ? latestIn.shelf : '',
+          'Ngày giờ scan in gần nhất': latestIn ? new Date(latestIn.time).toLocaleString('vi-VN') : '',
+          'Kệ scan out gần nhất': latestOut ? latestOut.shelf : '',
+          'Ngày giờ scan out gần nhất': latestOut ? new Date(latestOut.time).toLocaleString('vi-VN') : ''
+        };
+      });
+
+      // 6. Generate Excel file
       const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Auto-fit column widths
+      const maxLens = exportData.reduce((acc, row) => {
+        Object.entries(row).forEach(([col, val]) => {
+          const valStr = String(val || '');
+          acc[col] = Math.max(acc[col] || col.length, valStr.length);
+        });
+        return acc;
+      }, {} as Record<string, number>);
+      ws['!cols'] = Object.keys(maxLens).map(col => ({ wch: Math.min(50, maxLens[col] + 3) }));
+
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Lich_Su_Scan_Khuon');
-      const fileName = `LichSu_${historyMoldId}${historyMoldSize ? '_' + historyMoldSize : ''}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      XLSX.utils.book_append_sheet(wb, ws, 'Lich_Su_Di_Chuyen_Khuon');
+      XLSX.writeFile(wb, `Lich_Su_Di_Chuyen_Khuon_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err: any) {
-      alert('Lỗi xuất Excel: ' + err.message);
+      console.error(err);
+      alert('Lỗi xuất báo cáo lịch sử di chuyển: ' + err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -795,17 +832,12 @@ export function MoldShelfDatabase() {
           </button>
 
           <button 
-            onClick={() => {
-              setHistoryMoldId('');
-              setHistoryMoldSize('');
-              setMoldHistoryData([]);
-              setHistorySearched(false);
-              setIsMoldHistoryOpen(true);
-            }}
+            onClick={handleExportMovementHistoryExcel}
             className="bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_4px_14px_rgba(139,92,246,0.4)] flex items-center gap-2"
+            title="Tải file Excel báo cáo lịch sử di chuyển của tất cả khuôn"
           >
-            <History className="w-4 h-4" />
-            <span>Lịch sử Scan Khuôn</span>
+            <Download className="w-4 h-4" />
+            <span>Lịch sử di chuyển Khuôn</span>
           </button>
 
           <button 
@@ -1407,251 +1439,7 @@ export function MoldShelfDatabase() {
         )}
       </AnimatePresence>
 
-      {/* Mold Scan History Modal */}
-      <AnimatePresence>
-        {isMoldHistoryOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMoldHistoryOpen(false)}
-              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[55]"
-            />
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-              className="fixed inset-0 z-[55] flex items-center justify-center p-4 pointer-events-none"
-            >
-              <div className="bg-slate-800 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto">
-                {/* Modal Header */}
-                <div className="flex items-center justify-between p-6 border-b border-slate-700/50 bg-gradient-to-r from-violet-500/10 to-transparent rounded-t-3xl">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-violet-500/20 p-2.5 rounded-xl border border-violet-500/30">
-                      <History className="w-5 h-5 text-violet-400" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-white">Lịch sử Scan Khuôn Kệ</h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Truy vấn khuôn đã scan in/out trên các kệ</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsMoldHistoryOpen(false)}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Search Form */}
-                <div className="p-6 border-b border-slate-700/50 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5 relative">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mã Khuôn <span className="text-rose-400">*</span></label>
-                      <input
-                        type="text"
-                        value={historyMoldId}
-                        onChange={(e) => {
-                          setHistoryMoldId(e.target.value.toUpperCase());
-                          setHistoryFocused(true);
-                        }}
-                        onFocus={() => setHistoryFocused(true)}
-                        onBlur={() => setTimeout(() => setHistoryFocused(false), 200)}
-                        placeholder="VD: OV_0224"
-                        className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white font-mono uppercase text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
-                      />
-                      {/* Autocomplete */}
-                      {historyFocused && historyMoldId.trim().length >= 1 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-xl max-h-36 overflow-y-auto z-[70]">
-                          {moldMasterList
-                            .filter(m => m.id.toLowerCase().includes(historyMoldId.toLowerCase().trim()))
-                            .slice(0, 8)
-                            .map((m, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onMouseDown={() => {
-                                  setHistoryMoldId(m.id);
-                                  setHistoryMoldSize(m.size);
-                                  setHistoryFocused(false);
-                                }}
-                                className="w-full text-left px-3 py-2 hover:bg-violet-500/20 text-white text-xs font-bold border-b border-slate-800 last:border-0 flex justify-between items-center transition-colors"
-                              >
-                                <span>{m.id}</span>
-                                <span className="text-[9px] bg-indigo-500/20 px-1.5 py-0.5 rounded text-indigo-300 font-black">{m.size}</span>
-                              </button>
-                            ))}
-                          {moldMasterList.filter(m => m.id.toLowerCase().includes(historyMoldId.toLowerCase().trim())).length === 0 && (
-                            <div className="px-3 py-3 text-slate-500 text-[10px] italic text-center">Không tìm thấy khuôn</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Size (tùy chọn)</label>
-                      <input
-                        type="text"
-                        value={historyMoldSize}
-                        onChange={(e) => setHistoryMoldSize(e.target.value)}
-                        placeholder="VD: 7Y hoặc để trống"
-                        className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={fetchMoldShelfHistory}
-                    disabled={isLoadingHistory || !historyMoldId.trim()}
-                    className="w-full py-3 rounded-xl font-bold bg-violet-500 hover:bg-violet-400 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoadingHistory ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Đang truy vấn...</>
-                    ) : (
-                      <><History className="w-4 h-4" /> Truy vấn lịch sử</>
-                    )}
-                  </button>
-                </div>
-
-                {/* Results */}
-                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
-                  {!historySearched && (
-                    <div className="text-center py-12">
-                      <Clock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                      <p className="text-slate-500 text-sm">Nhập mã khuôn và nhấn Truy vấn để xem lịch sử</p>
-                    </div>
-                  )}
-                  {historySearched && moldHistoryData.length === 0 && !isLoadingHistory && (
-                    <div className="text-center py-12">
-                      <History className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                      <p className="text-slate-400 font-medium">Không tìm thấy lịch sử scan kệ</p>
-                      <p className="text-slate-500 text-xs mt-1">Khuôn này chưa được scan vào/ra kệ nào trong hệ thống</p>
-                    </div>
-                  )}
-                  {moldHistoryData.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-bold text-slate-300">
-                          Lịch sử khuôn <span className="text-violet-400">{historyMoldId}</span>
-                          {historyMoldSize && <span className="text-indigo-400 ml-1">(Size: {historyMoldSize})</span>}
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 bg-slate-900/60 px-3 py-1 rounded-full">{moldHistoryData.length} bản ghi</span>
-                          <button
-                            onClick={handleExportHistoryExcel}
-                            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm"
-                            title="Tải file Excel toàn bộ lịch sử"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            Excel
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Summary: last IN and last OUT */}
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        {(() => {
-                          const lastIn = moldHistoryData.find(d => d.action_type === 'IN');
-                          const lastOut = moldHistoryData.find(d => d.action_type === 'OUT');
-                          return (
-                            <>
-                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <LogIn className="w-4 h-4 text-emerald-400" />
-                                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Scan In gần nhất</span>
-                                </div>
-                                {lastIn ? (
-                                  <>
-                                    <p className="text-white font-bold text-sm">{lastIn.shelf_name}</p>
-                                    <p className="text-slate-400 text-[10px] font-mono">{lastIn.shelf_id}</p>
-                                    <p className="text-emerald-300 text-xs font-mono mt-1">
-                                      {new Date(lastIn.created_at).toLocaleString('vi-VN')}
-                                    </p>
-                                    <p className="text-slate-400 text-[10px] mt-0.5">SL: <span className="text-white font-bold">{lastIn.quantity}</span></p>
-                                  </>
-                                ) : (
-                                  <p className="text-slate-500 text-xs italic">Chưa có dữ liệu</p>
-                                )}
-                              </div>
-                              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <LogOut className="w-4 h-4 text-amber-400" />
-                                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Scan Out gần nhất</span>
-                                </div>
-                                {lastOut ? (
-                                  <>
-                                    <p className="text-white font-bold text-sm">{lastOut.shelf_name}</p>
-                                    <p className="text-slate-400 text-[10px] font-mono">{lastOut.shelf_id}</p>
-                                    <p className="text-amber-300 text-xs font-mono mt-1">
-                                      {new Date(lastOut.created_at).toLocaleString('vi-VN')}
-                                    </p>
-                                    <p className="text-slate-400 text-[10px] mt-0.5">SL: <span className="text-white font-bold">{lastOut.quantity}</span></p>
-                                  </>
-                                ) : (
-                                  <p className="text-slate-500 text-xs italic">Chưa có dữ liệu</p>
-                                )}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Full history table */}
-                      <div className="bg-slate-900/40 rounded-2xl border border-slate-700/50 overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-900 border-b border-slate-700 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                              <th className="px-4 py-3">Kệ</th>
-                              <th className="px-4 py-3 text-center">Hành động</th>
-                              <th className="px-4 py-3 text-center">Số lượng</th>
-                              <th className="px-4 py-3 text-right">Thời điểm</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800">
-                            {moldHistoryData.map((entry, i) => (
-                              <tr key={i} className="hover:bg-slate-800/30">
-                                <td className="px-4 py-2.5">
-                                  <div>
-                                    <p className="text-white font-bold text-xs">{entry.shelf_name}</p>
-                                    <p className="text-slate-500 text-[9px] font-mono">{entry.shelf_id}</p>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-2.5 text-center">
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${
-                                    entry.action_type === 'IN'
-                                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-                                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
-                                  }`}>
-                                    {entry.action_type === 'IN' ? <LogIn className="w-2.5 h-2.5" /> : <LogOut className="w-2.5 h-2.5" />}
-                                    {entry.action_type === 'IN' ? 'Scan In' : 'Scan Out'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2.5 text-center">
-                                  <span className="text-white font-mono font-bold text-xs">{entry.quantity}</span>
-                                </td>
-                                <td className="px-4 py-2.5 text-right">
-                                  <div className="flex flex-col items-end">
-                                    <span className="text-slate-300 text-[10px] font-mono">
-                                      {new Date(entry.created_at).toLocaleDateString('vi-VN')}
-                                    </span>
-                                    <span className="text-slate-500 text-[9px] font-mono">
-                                      {new Date(entry.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Mold Scan History Modal removed - replaced with direct Excel export */}
 
       {/* Auth Modal Shake Animation support */}
       <style dangerouslySetInnerHTML={{ __html: `

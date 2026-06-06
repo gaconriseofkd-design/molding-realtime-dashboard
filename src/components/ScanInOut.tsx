@@ -365,6 +365,16 @@ export function ScanInOut() {
           });
         if (insErr) throw insErr;
       }
+
+      // Ghi log lịch sử đưa khuôn VÀO kệ (Scan In vào Kệ)
+      await supabase.from('scan_logs').insert({
+        machine_id: shelfId,
+        mold_id: item.mold_id,
+        mold_size: item.mold_size,
+        quantity: item.quantity,
+        action_type: 'IN',
+        load_percentage: 0
+      });
     }
   };
 
@@ -609,6 +619,16 @@ export function ScanInOut() {
               .eq('uuid', shelfExisting.uuid);
             if (updErr) throw updErr;
           }
+
+          // Ghi log lịch sử đưa khuôn RA KHỎI kệ (Scan Out khỏi Kệ)
+          await supabase.from('scan_logs').insert({
+            machine_id: selectedShelfId,
+            mold_id: selectedMoldId,
+            mold_size: selectedSize,
+            quantity: scanQty,
+            action_type: 'OUT',
+            load_percentage: 0
+          });
         }
 
         // Log history with current load (AFTER scan in)
@@ -674,6 +694,16 @@ export function ScanInOut() {
               });
             if (insErr) throw insErr;
           }
+
+          // Ghi log lịch sử đưa khuôn VÀO kệ (Scan In vào Kệ)
+          await supabase.from('scan_logs').insert({
+            machine_id: selectedShelfId,
+            mold_id: selectedMoldId,
+            mold_size: selectedSize,
+            quantity: scanQty,
+            action_type: 'IN',
+            load_percentage: 0
+          });
         }
 
         // Log history with current load (AFTER scan out)
