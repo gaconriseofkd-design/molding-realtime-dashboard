@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
-import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download } from 'lucide-react';
+import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download, History, Clock, LogIn, LogOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -11,6 +11,23 @@ interface MoldInShelf {
   mold_size: string;
   quantity: number;
   scanned_in_at?: string;
+  last_scan_out_at?: string; // Latest scan OUT from shelf (last time mold left shelf)
+}
+
+interface ShelfScanLog {
+  mold_id: string;
+  mold_size: string;
+  action_type: 'IN' | 'OUT';
+  created_at: string;
+  machine_id: string;
+}
+
+interface MoldHistoryEntry {
+  shelf_id: string;
+  shelf_name: string;
+  action_type: 'IN' | 'OUT';
+  quantity: number;
+  created_at: string;
 }
 
 interface Shelf {
@@ -55,9 +72,21 @@ export function MoldShelfDatabase() {
   const [isAddingShelf, setIsAddingShelf] = useState(false);
   const [editingShelfId, setEditingShelfId] = useState<string | null>(null);
 
+  // Shelf scan log timestamps (for last scan in/out per mold per shelf)
+  const [shelfScanLogs, setShelfScanLogs] = useState<ShelfScanLog[]>([]);
+
+  // Mold history query modal
+  const [isMoldHistoryOpen, setIsMoldHistoryOpen] = useState(false);
+  const [historyMoldId, setHistoryMoldId] = useState('');
+  const [historyMoldSize, setHistoryMoldSize] = useState('');
+  const [moldHistoryData, setMoldHistoryData] = useState<MoldHistoryEntry[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historySearched, setHistorySearched] = useState(false);
+
   // Autocomplete states
   const [moldMasterList, setMoldMasterList] = useState<{ id: string; size: string }[]>([]);
   const [focusedRowIdx, setFocusedRowIdx] = useState<number | null>(null);
+  const [historyFocused, setHistoryFocused] = useState(false);
 
   // Load and subscribe
   useEffect(() => {
@@ -137,6 +166,11 @@ export function MoldShelfDatabase() {
       });
 
       setShelves(mappedShelves);
+
+      // Also fetch shelf scan logs for last IN/OUT timestamps
+      if (shelfIds.length > 0) {
+        fetchShelfScanLogs(shelfIds);
+      }
     } catch (err) {
       console.error('Error fetching shelf database:', err);
     } finally {
@@ -164,6 +198,89 @@ export function MoldShelfDatabase() {
       setMoldMasterList(allMoldsData);
     } catch (err) {
       console.error('Error loading mold masters:', err);
+    }
+  };
+
+  // Fetch recent scan_logs for shelf IDs to determine last scan IN/OUT timestamps per mold
+  const fetchShelfScanLogs = async (shelfIds: string[]) => {
+    try {
+      // Fetch recent scan_logs where machine_id is one of the shelf IDs
+      // We get last 500 records to cover recent activity
+      const { data, error } = await supabase
+        .from('scan_logs')
+        .select('machine_id, mold_id, mold_size, action_type, created_at')
+        .in('machine_id', shelfIds)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      setShelfScanLogs((data || []) as ShelfScanLog[]);
+    } catch (err) {
+      console.error('Error fetching shelf scan logs:', err);
+    }
+  };
+
+  // Helper: get last scan IN timestamp for a mold on a shelf from scan_logs
+  const getLastScanIn = (shelfId: string, moldId: string, moldSize: string, fallbackScannedIn?: string): string | undefined => {
+    const log = shelfScanLogs.find(
+      l => l.machine_id === shelfId && l.mold_id === moldId && l.mold_size === moldSize && l.action_type === 'IN'
+    );
+    return log?.created_at || fallbackScannedIn;
+  };
+
+  // Helper: get last scan OUT timestamp for a mold on a shelf from scan_logs
+  const getLastScanOut = (shelfId: string, moldId: string, moldSize: string): string | undefined => {
+    const log = shelfScanLogs.find(
+      l => l.machine_id === shelfId && l.mold_id === moldId && l.mold_size === moldSize && l.action_type === 'OUT'
+    );
+    return log?.created_at;
+  };
+
+  // Fetch mold history across all shelves for the history query modal
+  const fetchMoldShelfHistory = async () => {
+    const moldIdTrimmed = historyMoldId.trim().toUpperCase();
+    if (!moldIdTrimmed) {
+      alert('Vui lòng nhập mã khuôn!');
+      return;
+    }
+    setIsLoadingHistory(true);
+    setHistorySearched(true);
+    try {
+      // Get all shelf IDs
+      const shelfIds = shelves.map(s => s.id);
+
+      // Query scan_logs for this mold across all shelves
+      let query = supabase
+        .from('scan_logs')
+        .select('machine_id, mold_id, mold_size, action_type, quantity, created_at')
+        .eq('mold_id', moldIdTrimmed)
+        .in('machine_id', shelfIds)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (historyMoldSize.trim()) {
+        query = query.eq('mold_size', historyMoldSize.trim());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Map machine_id to shelf name
+      const shelfMap = Object.fromEntries(shelves.map(s => [s.id, s.name]));
+
+      const entries: MoldHistoryEntry[] = (data || []).map(d => ({
+        shelf_id: d.machine_id,
+        shelf_name: shelfMap[d.machine_id] || d.machine_id,
+        action_type: d.action_type,
+        quantity: d.quantity || 0,
+        created_at: d.created_at
+      }));
+
+      setMoldHistoryData(entries);
+    } catch (err: any) {
+      console.error('Error fetching mold shelf history:', err);
+      alert('Lỗi truy vấn lịch sử: ' + err.message);
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -654,6 +771,20 @@ export function MoldShelfDatabase() {
           </button>
 
           <button 
+            onClick={() => {
+              setHistoryMoldId('');
+              setHistoryMoldSize('');
+              setMoldHistoryData([]);
+              setHistorySearched(false);
+              setIsMoldHistoryOpen(true);
+            }}
+            className="bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_4px_14px_rgba(139,92,246,0.4)] flex items-center gap-2"
+          >
+            <History className="w-4 h-4" />
+            <span>Lịch sử Scan Khuôn</span>
+          </button>
+
+          <button 
             onClick={handleExportExcel}
             className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_4px_14px_rgba(16,185,129,0.4)] flex items-center gap-2"
           >
@@ -949,30 +1080,44 @@ export function MoldShelfDatabase() {
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-900 border-b border-slate-700 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                            <th className="px-5 py-3.5">Mã khuôn</th>
-                            <th className="px-5 py-3.5">Size</th>
-                            <th className="px-5 py-3.5 text-center">Số lượng</th>
-                            <th className="px-5 py-3.5 text-center">Cập nhật</th>
-                            <th className="px-5 py-3.5 text-right">Xóa</th>
+                            <th className="px-4 py-3.5">Mã khuôn</th>
+                            <th className="px-4 py-3.5">Size</th>
+                            <th className="px-4 py-3.5 text-center">Số lượng</th>
+                            <th className="px-4 py-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1 text-emerald-400">
+                                <LogIn className="w-3 h-3" />
+                                <span>Scan In</span>
+                              </div>
+                            </th>
+                            <th className="px-4 py-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1 text-amber-400">
+                                <LogOut className="w-3 h-3" />
+                                <span>Scan Out</span>
+                              </div>
+                            </th>
+                            <th className="px-4 py-3.5 text-right">Xóa</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-850 text-sm">
                           {selectedShelf.molds.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="px-5 py-12 text-center text-slate-500 italic">
+                              <td colSpan={6} className="px-5 py-12 text-center text-slate-500 italic">
                                 Kệ trống. Hãy scan thêm khuôn hoặc nhấn Chỉnh sửa để cập nhật.
                               </td>
                             </tr>
                           ) : (
-                            selectedShelf.molds.map((m, idx) => (
+                            selectedShelf.molds.map((m, idx) => {
+                              const lastIn = getLastScanIn(selectedShelf.id, m.mold_id, m.mold_size, m.scanned_in_at);
+                              const lastOut = getLastScanOut(selectedShelf.id, m.mold_id, m.mold_size);
+                              return (
                               <tr key={idx} className="hover:bg-slate-800/30">
-                                <td className="px-5 py-3.5 font-bold text-white">{m.mold_id}</td>
-                                <td className="px-5 py-3.5">
+                                <td className="px-4 py-3.5 font-bold text-white">{m.mold_id}</td>
+                                <td className="px-4 py-3.5">
                                   <span className="bg-slate-800 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded text-xs font-mono">
                                     {m.mold_size}
                                   </span>
                                 </td>
-                                <td className="px-5 py-3.5">
+                                <td className="px-4 py-3.5">
                                   <div className="flex items-center justify-center gap-2">
                                     <button
                                       onClick={() => handleQuickUpdateQty(m, -1)}
@@ -993,10 +1138,35 @@ export function MoldShelfDatabase() {
                                     </button>
                                   </div>
                                 </td>
-                                <td className="px-5 py-3.5 text-center text-xs text-slate-500 font-mono">
-                                  {m.scanned_in_at ? new Date(m.scanned_in_at).toLocaleDateString() : 'N/A'}
+                                <td className="px-4 py-3 text-center">
+                                  {lastIn ? (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                                        {new Date(lastIn).toLocaleDateString('vi-VN')}
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 font-mono">
+                                        {new Date(lastIn).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-600 italic">N/A</span>
+                                  )}
                                 </td>
-                                <td className="px-5 py-3.5 text-right">
+                                <td className="px-4 py-3 text-center">
+                                  {lastOut ? (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className="text-[10px] text-amber-400 font-mono font-semibold">
+                                        {new Date(lastOut).toLocaleDateString('vi-VN')}
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 font-mono">
+                                        {new Date(lastOut).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-600 italic">N/A</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3.5 text-right">
                                   <button
                                     onClick={() => handleQuickDeleteMold(m)}
                                     className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-700/50 rounded-lg transition-colors"
@@ -1006,7 +1176,8 @@ export function MoldShelfDatabase() {
                                   </button>
                                 </td>
                               </tr>
-                            ))
+                              );
+                            })
                           )}
                         </tbody>
                       </table>
@@ -1206,6 +1377,242 @@ export function MoldShelfDatabase() {
                   {isAddingShelf ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                   Lưu kệ
                 </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mold Scan History Modal */}
+      <AnimatePresence>
+        {isMoldHistoryOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMoldHistoryOpen(false)}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[55]"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 250 }}
+              className="fixed inset-0 z-[55] flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div className="bg-slate-800 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between p-6 border-b border-slate-700/50 bg-gradient-to-r from-violet-500/10 to-transparent rounded-t-3xl">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-violet-500/20 p-2.5 rounded-xl border border-violet-500/30">
+                      <History className="w-5 h-5 text-violet-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white">Lịch sử Scan Khuôn Kệ</h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Truy vấn khuôn đã scan in/out trên các kệ</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsMoldHistoryOpen(false)}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Search Form */}
+                <div className="p-6 border-b border-slate-700/50 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5 relative">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mã Khuôn <span className="text-rose-400">*</span></label>
+                      <input
+                        type="text"
+                        value={historyMoldId}
+                        onChange={(e) => {
+                          setHistoryMoldId(e.target.value.toUpperCase());
+                          setHistoryFocused(true);
+                        }}
+                        onFocus={() => setHistoryFocused(true)}
+                        onBlur={() => setTimeout(() => setHistoryFocused(false), 200)}
+                        placeholder="VD: OV_0224"
+                        className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white font-mono uppercase text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                      />
+                      {/* Autocomplete */}
+                      {historyFocused && historyMoldId.trim().length >= 1 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-xl max-h-36 overflow-y-auto z-[70]">
+                          {moldMasterList
+                            .filter(m => m.id.toLowerCase().includes(historyMoldId.toLowerCase().trim()))
+                            .slice(0, 8)
+                            .map((m, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onMouseDown={() => {
+                                  setHistoryMoldId(m.id);
+                                  setHistoryMoldSize(m.size);
+                                  setHistoryFocused(false);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-violet-500/20 text-white text-xs font-bold border-b border-slate-800 last:border-0 flex justify-between items-center transition-colors"
+                              >
+                                <span>{m.id}</span>
+                                <span className="text-[9px] bg-indigo-500/20 px-1.5 py-0.5 rounded text-indigo-300 font-black">{m.size}</span>
+                              </button>
+                            ))}
+                          {moldMasterList.filter(m => m.id.toLowerCase().includes(historyMoldId.toLowerCase().trim())).length === 0 && (
+                            <div className="px-3 py-3 text-slate-500 text-[10px] italic text-center">Không tìm thấy khuôn</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Size (tùy chọn)</label>
+                      <input
+                        type="text"
+                        value={historyMoldSize}
+                        onChange={(e) => setHistoryMoldSize(e.target.value)}
+                        placeholder="VD: 7Y hoặc để trống"
+                        className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchMoldShelfHistory}
+                    disabled={isLoadingHistory || !historyMoldId.trim()}
+                    className="w-full py-3 rounded-xl font-bold bg-violet-500 hover:bg-violet-400 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingHistory ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Đang truy vấn...</>
+                    ) : (
+                      <><History className="w-4 h-4" /> Truy vấn lịch sử</>
+                    )}
+                  </button>
+                </div>
+
+                {/* Results */}
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+                  {!historySearched && (
+                    <div className="text-center py-12">
+                      <Clock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-500 text-sm">Nhập mã khuôn và nhấn Truy vấn để xem lịch sử</p>
+                    </div>
+                  )}
+                  {historySearched && moldHistoryData.length === 0 && !isLoadingHistory && (
+                    <div className="text-center py-12">
+                      <History className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400 font-medium">Không tìm thấy lịch sử scan kệ</p>
+                      <p className="text-slate-500 text-xs mt-1">Khuôn này chưa được scan vào/ra kệ nào trong hệ thống</p>
+                    </div>
+                  )}
+                  {moldHistoryData.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-bold text-slate-300">
+                          Lịch sử khuôn <span className="text-violet-400">{historyMoldId}</span>
+                          {historyMoldSize && <span className="text-indigo-400 ml-1">(Size: {historyMoldSize})</span>}
+                        </h3>
+                        <span className="text-xs text-slate-500 bg-slate-900/60 px-3 py-1 rounded-full">{moldHistoryData.length} bản ghi</span>
+                      </div>
+
+                      {/* Summary: last IN and last OUT */}
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        {(() => {
+                          const lastIn = moldHistoryData.find(d => d.action_type === 'IN');
+                          const lastOut = moldHistoryData.find(d => d.action_type === 'OUT');
+                          return (
+                            <>
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <LogIn className="w-4 h-4 text-emerald-400" />
+                                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Scan In gần nhất</span>
+                                </div>
+                                {lastIn ? (
+                                  <>
+                                    <p className="text-white font-bold text-sm">{lastIn.shelf_name}</p>
+                                    <p className="text-slate-400 text-[10px] font-mono">{lastIn.shelf_id}</p>
+                                    <p className="text-emerald-300 text-xs font-mono mt-1">
+                                      {new Date(lastIn.created_at).toLocaleString('vi-VN')}
+                                    </p>
+                                    <p className="text-slate-400 text-[10px] mt-0.5">SL: <span className="text-white font-bold">{lastIn.quantity}</span></p>
+                                  </>
+                                ) : (
+                                  <p className="text-slate-500 text-xs italic">Chưa có dữ liệu</p>
+                                )}
+                              </div>
+                              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <LogOut className="w-4 h-4 text-amber-400" />
+                                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Scan Out gần nhất</span>
+                                </div>
+                                {lastOut ? (
+                                  <>
+                                    <p className="text-white font-bold text-sm">{lastOut.shelf_name}</p>
+                                    <p className="text-slate-400 text-[10px] font-mono">{lastOut.shelf_id}</p>
+                                    <p className="text-amber-300 text-xs font-mono mt-1">
+                                      {new Date(lastOut.created_at).toLocaleString('vi-VN')}
+                                    </p>
+                                    <p className="text-slate-400 text-[10px] mt-0.5">SL: <span className="text-white font-bold">{lastOut.quantity}</span></p>
+                                  </>
+                                ) : (
+                                  <p className="text-slate-500 text-xs italic">Chưa có dữ liệu</p>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Full history table */}
+                      <div className="bg-slate-900/40 rounded-2xl border border-slate-700/50 overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-900 border-b border-slate-700 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              <th className="px-4 py-3">Kệ</th>
+                              <th className="px-4 py-3 text-center">Hành động</th>
+                              <th className="px-4 py-3 text-center">Số lượng</th>
+                              <th className="px-4 py-3 text-right">Thời điểm</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                            {moldHistoryData.map((entry, i) => (
+                              <tr key={i} className="hover:bg-slate-800/30">
+                                <td className="px-4 py-2.5">
+                                  <div>
+                                    <p className="text-white font-bold text-xs">{entry.shelf_name}</p>
+                                    <p className="text-slate-500 text-[9px] font-mono">{entry.shelf_id}</p>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                    entry.action_type === 'IN'
+                                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                                  }`}>
+                                    {entry.action_type === 'IN' ? <LogIn className="w-2.5 h-2.5" /> : <LogOut className="w-2.5 h-2.5" />}
+                                    {entry.action_type === 'IN' ? 'Scan In' : 'Scan Out'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <span className="text-white font-mono font-bold text-xs">{entry.quantity}</span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right">
+                                  <div className="flex flex-col items-end">
+                                    <span className="text-slate-300 text-[10px] font-mono">
+                                      {new Date(entry.created_at).toLocaleDateString('vi-VN')}
+                                    </span>
+                                    <span className="text-slate-500 text-[9px] font-mono">
+                                      {new Date(entry.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           </>
