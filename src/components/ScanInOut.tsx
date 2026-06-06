@@ -1219,8 +1219,7 @@ export function ScanInOut() {
                         const totalQty = shelf.molds?.reduce((sum: number, m: any) => sum + (m.quantity || 0), 0) || 0;
                         
                         return (
-                          <button
-                            type="button"
+                          <div
                             key={shelf.id}
                             onClick={() => setSelectedShelfId(shelf.id)}
                             className={`relative p-4 rounded-2xl text-left transition-all border flex flex-col justify-between min-h-[110px] cursor-pointer select-none active:scale-[0.98] ${
@@ -1255,7 +1254,7 @@ export function ScanInOut() {
                                 )}
                               </div>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
