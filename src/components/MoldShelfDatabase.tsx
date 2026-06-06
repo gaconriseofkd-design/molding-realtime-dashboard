@@ -53,9 +53,14 @@ export function MoldShelfDatabase() {
   const [newShelfName, setNewShelfName] = useState('');
   const [isAddingShelf, setIsAddingShelf] = useState(false);
 
+  // Autocomplete states
+  const [moldMasterList, setMoldMasterList] = useState<{ id: string; size: string }[]>([]);
+  const [focusedRowIdx, setFocusedRowIdx] = useState<number | null>(null);
+
   // Load and subscribe
   useEffect(() => {
     fetchData();
+    fetchMoldMasters();
 
     // Subscribe to machines (shelves) and running_molds changes
     const channel = supabase
@@ -134,6 +139,29 @@ export function MoldShelfDatabase() {
       console.error('Error fetching shelf database:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchMoldMasters = async () => {
+    try {
+      let allMoldsData: {id: string, size: string}[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('mold_master')
+          .select('id, size')
+          .order('id')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error || !data || data.length === 0) break;
+        allMoldsData = [...allMoldsData, ...data];
+        if (data.length < pageSize) break;
+        page++;
+      }
+      setMoldMasterList(allMoldsData);
+    } catch (err) {
+      console.error('Error loading mold masters:', err);
     }
   };
 
@@ -619,15 +647,47 @@ export function MoldShelfDatabase() {
                           </button>
 
                           <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
+                            <div className="space-y-1 relative">
                               <label className="text-[10px] text-slate-500 font-bold uppercase">Mã khuôn</label>
                               <input
                                 type="text"
                                 value={item.mold_id}
                                 placeholder="VD: OV_0224"
-                                onChange={(e) => handleStockRowChange(idx, 'mold_id', e.target.value.toUpperCase())}
+                                onFocus={() => setFocusedRowIdx(idx)}
+                                onBlur={() => setTimeout(() => setFocusedRowIdx(null), 250)}
+                                onChange={(e) => {
+                                  handleStockRowChange(idx, 'mold_id', e.target.value.toUpperCase());
+                                  setFocusedRowIdx(idx);
+                                }}
                                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white uppercase focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
+
+                              {/* Suggestions Dropdown */}
+                              {focusedRowIdx === idx && item.mold_id.trim().length >= 1 && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] max-h-40 overflow-y-auto z-[70] scrollbar-thin">
+                                  {moldMasterList
+                                    .filter(m => m.id.toLowerCase().includes(item.mold_id.toLowerCase().trim()))
+                                    .slice(0, 10)
+                                    .map((m, sIdx) => (
+                                      <button
+                                        key={sIdx}
+                                        type="button"
+                                        onMouseDown={() => {
+                                          handleStockRowChange(idx, 'mold_id', m.id);
+                                          handleStockRowChange(idx, 'mold_size', m.size);
+                                          setFocusedRowIdx(null);
+                                        }}
+                                        className="w-full text-left px-3 py-2 hover:bg-indigo-500/30 text-white font-bold text-xs border-b border-slate-800 last:border-0 flex justify-between items-center group transition-colors"
+                                      >
+                                        <span>{m.id}</span>
+                                        <span className="text-[9px] bg-indigo-500/20 px-1.5 py-0.5 rounded text-indigo-300 font-black uppercase ring-1 ring-indigo-500/30">{m.size}</span>
+                                      </button>
+                                    ))}
+                                  {moldMasterList.filter(m => m.id.toLowerCase().includes(item.mold_id.toLowerCase().trim())).length === 0 && (
+                                    <div className="px-3 py-3 text-slate-500 text-[10px] italic text-center">Không tìm thấy khuôn</div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="space-y-1">
                               <label className="text-[10px] text-slate-500 font-bold uppercase">Size</label>
