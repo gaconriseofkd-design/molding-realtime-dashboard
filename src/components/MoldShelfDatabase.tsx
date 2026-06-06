@@ -52,6 +52,7 @@ export function MoldShelfDatabase() {
   const [newShelfId, setNewShelfId] = useState('');
   const [newShelfName, setNewShelfName] = useState('');
   const [isAddingShelf, setIsAddingShelf] = useState(false);
+  const [editingShelfId, setEditingShelfId] = useState<string | null>(null);
 
   // Autocomplete states
   const [moldMasterList, setMoldMasterList] = useState<{ id: string; size: string }[]>([]);
@@ -190,36 +191,53 @@ export function MoldShelfDatabase() {
     }
   };
 
-  // Add a shelf
-  const handleAddShelf = async () => {
-    if (!newShelfId.trim() || !newShelfName.trim()) {
-      alert('Vui lòng nhập đầy đủ thông tin!');
+  // Add or edit a shelf
+  const handleSaveShelf = async () => {
+    if (!newShelfName.trim()) {
+      alert('Vui lòng nhập tên kệ!');
       return;
     }
     
     setIsAddingShelf(true);
     try {
-      const idUpper = newShelfId.trim().toUpperCase();
-      const shelfIdFormatted = idUpper.startsWith('SHELF-') ? idUpper : `SHELF-${idUpper}`;
+      if (editingShelfId) {
+        // Edit mode
+        const { error } = await supabase
+          .from('machines')
+          .update({ name: newShelfName.trim() })
+          .eq('id', editingShelfId);
 
-      const { error } = await supabase
-        .from('machines')
-        .insert([{
-          id: shelfIdFormatted,
-          name: newShelfName.trim(),
-          max_molds: 9999,
-          status: 'optimal',
-          operational_status: 'active'
-        }]);
+        if (error) throw error;
+      } else {
+        // Add mode
+        if (!newShelfId.trim()) {
+          alert('Vui lòng nhập Mã số kệ!');
+          setIsAddingShelf(false);
+          return;
+        }
+        const idUpper = newShelfId.trim().toUpperCase();
+        const shelfIdFormatted = idUpper.startsWith('SHELF-') ? idUpper : `SHELF-${idUpper}`;
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('machines')
+          .insert([{
+            id: shelfIdFormatted,
+            name: newShelfName.trim(),
+            max_molds: 9999,
+            status: 'optimal',
+            operational_status: 'active'
+          }]);
+
+        if (error) throw error;
+      }
       
       setIsAddShelfOpen(false);
       setNewShelfId('');
       setNewShelfName('');
+      setEditingShelfId(null);
       await fetchData();
     } catch (error: any) {
-      alert('Lỗi thêm kệ: ' + error.message);
+      alert('Lỗi lưu kệ: ' + error.message);
     } finally {
       setIsAddingShelf(false);
     }
@@ -470,6 +488,7 @@ export function MoldShelfDatabase() {
           <button 
             onClick={() => handleRequiredAuth(() => {
               // Auto suggest next shelf ID
+              setEditingShelfId(null);
               const nextNum = shelves.length + 1;
               setNewShelfId(String(nextNum).padStart(2, '0'));
               setNewShelfName(`Kệ ${String(nextNum).padStart(2, '0')}`);
@@ -535,7 +554,24 @@ export function MoldShelfDatabase() {
                 >
                   <div>
                     <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-black text-white text-base tracking-wider uppercase">{shelf.name}</h3>
+                      <div className="flex items-center gap-1.5 group/title">
+                        <h3 className="font-black text-white text-base tracking-wider uppercase">{shelf.name}</h3>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRequiredAuth(() => {
+                              setEditingShelfId(shelf.id);
+                              setNewShelfId(shelf.id.replace('SHELF-', ''));
+                              setNewShelfName(shelf.name);
+                              setIsAddShelfOpen(true);
+                            });
+                          }}
+                          className="p-1 text-slate-400 hover:text-indigo-400 rounded-md transition-colors hover:bg-slate-700/50"
+                          title="Sửa tên kệ"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       <span className="text-[10px] text-slate-500 font-mono tracking-widest">{shelf.id.replace('SHELF-', '')}</span>
                     </div>
 
@@ -597,7 +633,21 @@ export function MoldShelfDatabase() {
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-700/50 bg-slate-900/20">
                 <div>
-                  <h2 className="text-xl font-bold text-white tracking-wider uppercase">{selectedShelf.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-white tracking-wider uppercase">{selectedShelf.name}</h2>
+                    <button
+                      onClick={() => handleRequiredAuth(() => {
+                        setEditingShelfId(selectedShelf.id);
+                        setNewShelfId(selectedShelf.id.replace('SHELF-', ''));
+                        setNewShelfName(selectedShelf.name);
+                        setIsAddShelfOpen(true);
+                      })}
+                      className="p-1 text-slate-400 hover:text-indigo-400 rounded-md transition-colors hover:bg-slate-700/50"
+                      title="Sửa tên kệ"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  </div>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">{selectedShelf.id}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -879,7 +929,7 @@ export function MoldShelfDatabase() {
         )}
       </AnimatePresence>
 
-      {/* Slide-over Modal for Adding a New Shelf */}
+      {/* Slide-over Modal for Adding / Editing a Shelf */}
       <AnimatePresence>
         {isAddShelfOpen && (
           <>
@@ -887,7 +937,12 @@ export function MoldShelfDatabase() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsAddShelfOpen(false)}
+              onClick={() => {
+                setIsAddShelfOpen(false);
+                setNewShelfId('');
+                setNewShelfName('');
+                setEditingShelfId(null);
+              }}
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50"
             />
             <motion.div
@@ -898,9 +953,14 @@ export function MoldShelfDatabase() {
               className="fixed inset-y-0 right-0 w-full max-w-md bg-slate-800 border-l border-slate-700 shadow-2xl z-50 flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
-                <h2 className="text-xl font-bold text-white">Thêm Kệ Mới</h2>
+                <h2 className="text-xl font-bold text-white">{editingShelfId ? 'Chỉnh sửa Kệ' : 'Thêm Kệ Mới'}</h2>
                 <button 
-                  onClick={() => setIsAddShelfOpen(false)}
+                  onClick={() => {
+                    setIsAddShelfOpen(false);
+                    setNewShelfId('');
+                    setNewShelfName('');
+                    setEditingShelfId(null);
+                  }}
                   className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -914,10 +974,13 @@ export function MoldShelfDatabase() {
                     type="text" 
                     value={newShelfId}
                     onChange={(e) => setNewShelfId(e.target.value)}
+                    disabled={!!editingShelfId}
                     placeholder="VD: 21"
-                    className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono uppercase"
+                    className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono uppercase disabled:opacity-50"
                   />
-                  <p className="text-[10px] text-slate-500 font-medium">Mã hệ thống đầy đủ sẽ tự động thêm tiền tố: SHELF-XX</p>
+                  {!editingShelfId && (
+                    <p className="text-[10px] text-slate-500 font-medium">Mã hệ thống đầy đủ sẽ tự động thêm tiền tố: SHELF-XX</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -934,13 +997,18 @@ export function MoldShelfDatabase() {
 
               <div className="p-6 border-t border-slate-700/50 bg-slate-900/30 flex gap-4">
                 <button 
-                  onClick={() => setIsAddShelfOpen(false)}
+                  onClick={() => {
+                    setIsAddShelfOpen(false);
+                    setNewShelfId('');
+                    setNewShelfName('');
+                    setEditingShelfId(null);
+                  }}
                   className="flex-1 py-3 rounded-xl font-bold bg-slate-700 text-white hover:bg-slate-600 transition-colors"
                 >
                   {t('cancel')}
                 </button>
                 <button 
-                  onClick={handleAddShelf}
+                  onClick={handleSaveShelf}
                   disabled={isAddingShelf}
                   className="flex-1 py-3 rounded-xl font-bold bg-indigo-500 text-white shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:bg-indigo-400 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
