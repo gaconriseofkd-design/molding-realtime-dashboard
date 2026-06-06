@@ -603,9 +603,11 @@ export function ScanInOut() {
 
         if (error) throw error;
 
-        // Decrement from shelf if shelf is selected
+        // Trừ khuôn khỏi kệ: Nếu có chọn kệ cụ thể thì trừ ở kệ đó trước, còn lại (hoặc nếu không chọn kệ) tự động tìm và trừ ở các kệ khác đang chứa khuôn này để tránh trùng lặp dữ liệu.
+        let remainingToDeduct = scanQty;
         if (selectedShelfId && shelfExisting) {
-          const newShelfQty = shelfExisting.quantity - scanQty;
+          const deductQty = Math.min(shelfExisting.quantity, remainingToDeduct);
+          const newShelfQty = shelfExisting.quantity - deductQty;
           if (newShelfQty <= 0) {
             const { error: delErr } = await supabase
               .from('running_molds')
@@ -625,10 +627,55 @@ export function ScanInOut() {
             machine_id: selectedShelfId,
             mold_id: selectedMoldId,
             mold_size: selectedSize,
-            quantity: scanQty,
+            quantity: deductQty,
             action_type: 'OUT',
             load_percentage: 0
           });
+
+          remainingToDeduct -= deductQty;
+        }
+
+        // Tự động tìm và trừ tiếp trên các kệ khác nếu vẫn còn dư lượng cần trừ (hoặc nếu không chọn kệ ban đầu)
+        if (remainingToDeduct > 0) {
+          const query = supabase
+            .from('running_molds')
+            .select('uuid, quantity, machine_id')
+            .eq('mold_id', selectedMoldId)
+            .eq('mold_size', selectedSize)
+            .like('machine_id', 'SHELF-%')
+            .order('quantity', { ascending: false });
+
+          // Lọc bỏ kệ đã chọn ở trên nếu có
+          const { data: shelfItems, error: sErr } = selectedShelfId 
+            ? await query.neq('machine_id', selectedShelfId)
+            : await query;
+
+          if (!sErr && shelfItems && shelfItems.length > 0) {
+            for (const item of shelfItems) {
+              if (remainingToDeduct <= 0) break;
+              
+              const deductQty = Math.min(item.quantity, remainingToDeduct);
+              const newShelfQty = item.quantity - deductQty;
+              
+              if (newShelfQty <= 0) {
+                await supabase.from('running_molds').delete().eq('uuid', item.uuid);
+              } else {
+                await supabase.from('running_molds').update({ quantity: newShelfQty }).eq('uuid', item.uuid);
+              }
+
+              // Ghi log lịch sử tự động đưa khuôn RA KHỎI kệ
+              await supabase.from('scan_logs').insert({
+                machine_id: item.machine_id,
+                mold_id: selectedMoldId,
+                mold_size: selectedSize,
+                quantity: deductQty,
+                action_type: 'OUT',
+                load_percentage: 0
+              });
+
+              remainingToDeduct -= deductQty;
+            }
+          }
         }
 
         // Log history with current load (AFTER scan in)
