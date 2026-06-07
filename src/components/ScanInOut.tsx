@@ -6,32 +6,36 @@ import { supabase } from '../utils/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // Helper functions for default shelves settings in localStorage
-const getDefaultShelvesForMold = (moldId: string): string[] => {
+const getDefaultShelvesForMoldSize = (moldId: string, moldSize: string): string[] => {
   if (typeof window === 'undefined') return [];
-  const data = localStorage.getItem('default_shelves_by_mold');
+  if (!moldId || !moldSize) return [];
+  const data = localStorage.getItem('default_shelves_by_mold_size');
   if (!data) return [];
   try {
     const parsed = JSON.parse(data);
-    return parsed[moldId] || [];
+    const key = `${moldId}_${moldSize}`;
+    return parsed[key] || [];
   } catch {
     return [];
   }
 };
 
-const toggleDefaultShelfForMold = (moldId: string, shelfId: string) => {
+const toggleDefaultShelfForMoldSize = (moldId: string, moldSize: string, shelfId: string) => {
   if (typeof window === 'undefined') return;
-  const data = localStorage.getItem('default_shelves_by_mold');
+  if (!moldId || !moldSize) return;
+  const data = localStorage.getItem('default_shelves_by_mold_size');
   let parsed: Record<string, string[]> = {};
   if (data) {
     try { parsed = JSON.parse(data); } catch {}
   }
-  const current = parsed[moldId] || [];
+  const key = `${moldId}_${moldSize}`;
+  const current = parsed[key] || [];
   if (current.includes(shelfId)) {
-    parsed[moldId] = current.filter(id => id !== shelfId);
+    parsed[key] = current.filter(id => id !== shelfId);
   } else {
-    parsed[moldId] = [...current, shelfId];
+    parsed[key] = [...current, shelfId];
   }
-  localStorage.setItem('default_shelves_by_mold', JSON.stringify(parsed));
+  localStorage.setItem('default_shelves_by_mold_size', JSON.stringify(parsed));
 };
 
 export function ScanInOut() {
@@ -74,7 +78,7 @@ export function ScanInOut() {
   const [showDefaultMenuShelfId, setShowDefaultMenuShelfId] = useState<string | null>(null);
 
   const startPress = (shelfId: string) => {
-    if (scanType !== 'OUT' || !selectedMoldId) return;
+    if (scanType !== 'OUT' || !selectedMoldId || !selectedSize) return;
     
     isLongPressedRef.current = false;
     if (longPressTimeoutRef.current) {
@@ -394,7 +398,7 @@ export function ScanInOut() {
       );
     } else {
       // Scan OUT: Ưu tiên kệ mặc định
-      const defaults = selectedMoldId ? getDefaultShelvesForMold(selectedMoldId) : [];
+      const defaults = (selectedMoldId && selectedSize) ? getDefaultShelvesForMoldSize(selectedMoldId, selectedSize) : [];
       if (defaults.length > 0) {
         if (showAllShelvesForScanOut) {
           // Trả về tất cả các kệ nhưng sắp xếp kệ mặc định lên đầu
@@ -412,7 +416,7 @@ export function ScanInOut() {
       // Nếu chưa có kệ mặc định nào thì hiển thị toàn bộ
       return shelvesWithMolds;
     }
-  }, [scanType, showAllShelvesForScanIn, showAllShelvesForScanOut, shelvesWithMolds, selectedMoldId, refreshDefaultTrigger]);
+  }, [scanType, showAllShelvesForScanIn, showAllShelvesForScanOut, shelvesWithMolds, selectedMoldId, selectedSize, refreshDefaultTrigger]);
 
   const returnMoldsToShelf = async (items: {mold_id: string, mold_size: string, quantity: number}[], shelfId: string) => {
     for (const item of items) {
@@ -1377,7 +1381,7 @@ export function ScanInOut() {
                       {shelvesToShow.map((shelf) => {
                         const isSelected = selectedShelfId === shelf.id;
                         const totalQty = shelf.molds?.reduce((sum: number, m: any) => sum + (m.quantity || 0), 0) || 0;
-                        const isDefault = selectedMoldId ? getDefaultShelvesForMold(selectedMoldId).includes(shelf.id) : false;
+                        const isDefault = (selectedMoldId && selectedSize) ? getDefaultShelvesForMoldSize(selectedMoldId, selectedSize).includes(shelf.id) : false;
 
                         return (
                           <div
@@ -1401,7 +1405,7 @@ export function ScanInOut() {
                             }`}
                           >
                             {/* Menu cài đặt kệ mặc định khi nhấn giữ */}
-                            {showDefaultMenuShelfId === shelf.id && selectedMoldId && (
+                            {showDefaultMenuShelfId === shelf.id && selectedMoldId && selectedSize && (
                               <div
                                 onClick={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
@@ -1411,14 +1415,14 @@ export function ScanInOut() {
                                 className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-3 z-30 gap-2 animate-in fade-in duration-200"
                               >
                                 <p className="text-[10px] font-black text-slate-300 text-center tracking-wide">
-                                  Cài đặt cho {selectedMoldId}
+                                  Cài đặt cho {selectedMoldId} ({selectedSize})
                                 </p>
                                 <div className="flex gap-1.5 w-full">
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      toggleDefaultShelfForMold(selectedMoldId, shelf.id);
+                                      toggleDefaultShelfForMoldSize(selectedMoldId, selectedSize, shelf.id);
                                       setShowDefaultMenuShelfId(null);
                                       setRefreshDefaultTrigger(p => p + 1);
                                     }}
@@ -1495,7 +1499,7 @@ export function ScanInOut() {
                   )}
 
                   {/* Toggle expand/collapse button for Scan OUT */}
-                  {scanType === 'OUT' && selectedMoldId && getDefaultShelvesForMold(selectedMoldId).length > 0 && (
+                  {scanType === 'OUT' && selectedMoldId && selectedSize && getDefaultShelvesForMoldSize(selectedMoldId, selectedSize).length > 0 && (
                     <button 
                       type="button" 
                       onClick={() => setShowAllShelvesForScanOut(!showAllShelvesForScanOut)} 

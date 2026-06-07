@@ -43,45 +43,51 @@ export function MoldDatabase() {
     }
   }, [isAuthenticated]);
 
-  const getDefaultShelvesForMold = (moldId: string): string[] => {
+  const getDefaultShelvesForMoldSize = (moldId: string, moldSize: string): string[] => {
     if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem('default_shelves_by_mold');
+    if (!moldId || !moldSize) return [];
+    const data = localStorage.getItem('default_shelves_by_mold_size');
     if (!data) return [];
     try {
       const parsed = JSON.parse(data);
-      return parsed[moldId] || [];
+      const key = `${moldId}_${moldSize}`;
+      return parsed[key] || [];
     } catch {
       return [];
     }
   };
 
-  const addDefaultShelf = (moldId: string, shelfId: string) => {
+  const addDefaultShelfForMoldSize = (moldId: string, moldSize: string, shelfId: string) => {
     if (typeof window === 'undefined') return;
-    const data = localStorage.getItem('default_shelves_by_mold');
+    if (!moldId || !moldSize) return;
+    const data = localStorage.getItem('default_shelves_by_mold_size');
     let parsed: Record<string, string[]> = {};
     if (data) {
       try { parsed = JSON.parse(data); } catch {}
     }
-    const current = parsed[moldId] || [];
+    const key = `${moldId}_${moldSize}`;
+    const current = parsed[key] || [];
     if (!current.includes(shelfId)) {
-      parsed[moldId] = [...current, shelfId];
-      localStorage.setItem('default_shelves_by_mold', JSON.stringify(parsed));
+      parsed[key] = [...current, shelfId];
+      localStorage.setItem('default_shelves_by_mold_size', JSON.stringify(parsed));
       setRefreshTrigger(prev => prev + 1);
     }
     setActiveAddDropdown(null);
   };
 
-  const removeDefaultShelf = (moldId: string, shelfId: string) => {
+  const removeDefaultShelfForMoldSize = (moldId: string, moldSize: string, shelfId: string) => {
     if (typeof window === 'undefined') return;
-    const data = localStorage.getItem('default_shelves_by_mold');
+    if (!moldId || !moldSize) return;
+    const data = localStorage.getItem('default_shelves_by_mold_size');
     let parsed: Record<string, string[]> = {};
     if (data) {
       try { parsed = JSON.parse(data); } catch {}
     }
-    const current = parsed[moldId] || [];
+    const key = `${moldId}_${moldSize}`;
+    const current = parsed[key] || [];
     if (current.includes(shelfId)) {
-      parsed[moldId] = current.filter(id => id !== shelfId);
-      localStorage.setItem('default_shelves_by_mold', JSON.stringify(parsed));
+      parsed[key] = current.filter(id => id !== shelfId);
+      localStorage.setItem('default_shelves_by_mold_size', JSON.stringify(parsed));
       setRefreshTrigger(prev => prev + 1);
     }
   };
@@ -235,7 +241,7 @@ export function MoldDatabase() {
       });
 
       const dataToExport = masterData.map(item => {
-        const defaults = getDefaultShelvesForMold(item.id);
+        const defaults = getDefaultShelvesForMoldSize(item.id, item.size);
         const defaultNames = defaults.map(shelfId => shelfMap[shelfId] || shelfId).join(', ');
 
         return {
@@ -588,7 +594,7 @@ export function MoldDatabase() {
                   </td>
                   <td className="px-6 py-4">
                     {(() => {
-                      const moldDefaults = getDefaultShelvesForMold(mold.id);
+                      const moldDefaults = getDefaultShelvesForMoldSize(mold.id, mold.size);
                       const availableShelvesForAdd = shelves.filter(s => !moldDefaults.includes(s.id));
                       const rowKey = `${mold.id}_${mold.size}`;
                       
@@ -605,7 +611,7 @@ export function MoldDatabase() {
                                 <span>{displayName}</span>
                                 <button
                                   type="button"
-                                  onClick={() => removeDefaultShelf(mold.id, shelfId)}
+                                  onClick={() => removeDefaultShelfForMoldSize(mold.id, mold.size, shelfId)}
                                   className="text-slate-400 hover:text-rose-400 transition-colors p-0.5 rounded-full hover:bg-slate-700/50 cursor-pointer"
                                 >
                                   <X className="w-3.5 h-3.5" />
@@ -636,7 +642,7 @@ export function MoldDatabase() {
                                       <button
                                         key={s.id}
                                         type="button"
-                                        onClick={() => addDefaultShelf(mold.id, s.id)}
+                                        onClick={() => addDefaultShelfForMoldSize(mold.id, mold.size, s.id)}
                                         className="w-full text-left px-2.5 py-1.5 text-xs text-slate-200 hover:bg-indigo-500/20 hover:text-indigo-300 font-bold rounded-lg transition-colors cursor-pointer"
                                       >
                                         {s.name}
