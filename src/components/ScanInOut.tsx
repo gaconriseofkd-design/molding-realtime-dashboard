@@ -75,10 +75,21 @@ export function ScanInOut() {
   // Long press refs and states for setting default shelf
   const longPressTimeoutRef = useRef<any>(null);
   const isLongPressedRef = useRef(false);
+  const touchStartPosRef = useRef<{x: number, y: number} | null>(null);
   const [showDefaultMenuShelfId, setShowDefaultMenuShelfId] = useState<string | null>(null);
 
-  const startPress = (shelfId: string) => {
+  const startPress = (shelfId: string, e?: React.TouchEvent | React.MouseEvent) => {
     if (scanType !== 'OUT' || !selectedMoldId || !selectedSize) return;
+    
+    // Track touch start coordinates to distinguish scroll from hold
+    if (e && 'touches' in e && e.touches[0]) {
+      touchStartPosRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      };
+    } else {
+      touchStartPosRef.current = null;
+    }
     
     isLongPressedRef.current = false;
     if (longPressTimeoutRef.current) {
@@ -89,6 +100,16 @@ export function ScanInOut() {
       isLongPressedRef.current = true;
       setShowDefaultMenuShelfId(shelfId);
     }, 1500); // ~1.5s long press threshold
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current || !e.touches || !e.touches[0]) return;
+    const dx = e.touches[0].clientX - touchStartPosRef.current.x;
+    const dy = e.touches[0].clientY - touchStartPosRef.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 10) { // Cancel long press if they drag more than 10px
+      endPress();
+    }
   };
 
   const endPress = () => {
@@ -1393,11 +1414,18 @@ export function ScanInOut() {
                               }
                               setSelectedShelfId(shelf.id);
                             }}
-                            onTouchStart={() => startPress(shelf.id)}
+                            onTouchStart={(e) => startPress(shelf.id, e)}
+                            onTouchMove={handleTouchMove}
                             onTouchEnd={endPress}
-                            onMouseDown={() => startPress(shelf.id)}
+                            onMouseDown={(e) => startPress(shelf.id, e)}
                             onMouseUp={endPress}
                             onMouseLeave={endPress}
+                            onContextMenu={(e) => e.preventDefault()}
+                            style={{
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none'
+                            }}
                             className={`relative p-4 rounded-2xl text-left transition-all border flex flex-col justify-between min-h-[110px] cursor-pointer select-none active:scale-[0.98] ${
                               isSelected
                                 ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)] ring-2 ring-indigo-400/50'
