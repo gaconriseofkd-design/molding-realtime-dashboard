@@ -228,13 +228,25 @@ export function MoldDatabase() {
         runningCountMap[key] = (runningCountMap[key] || 0) + (item.quantity || 0);
       });
 
-      const dataToExport = masterData.map(item => ({
-        'Mold ID': item.id,
-        'Size': item.size,
-        'Total Owned': item.total_owned,
-        'Currently Running': runningCountMap[`${item.id}_${item.size}`] || 0,
-        'Status': item.status
-      }));
+      // Prepare shelf mapping for export
+      const shelfMap: Record<string, string> = {};
+      shelves.forEach(s => {
+        shelfMap[s.id] = s.name;
+      });
+
+      const dataToExport = masterData.map(item => {
+        const defaults = getDefaultShelvesForMold(item.id);
+        const defaultNames = defaults.map(shelfId => shelfMap[shelfId] || shelfId).join(', ');
+
+        return {
+          'Mold ID': item.id,
+          'Size': item.size,
+          'Total Owned': item.total_owned,
+          'Currently Running': runningCountMap[`${item.id}_${item.size}`] || 0,
+          'Status': item.status,
+          'Kệ Mặc Định': defaultNames || ''
+        };
+      });
 
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
