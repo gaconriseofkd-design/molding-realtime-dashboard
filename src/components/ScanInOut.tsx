@@ -5,39 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode';
 
-// Helper functions for default shelves settings in localStorage
-const getDefaultShelvesForMoldSize = (moldId: string, moldSize: string): string[] => {
-  if (typeof window === 'undefined') return [];
-  if (!moldId || !moldSize) return [];
-  const data = localStorage.getItem('default_shelves_by_mold_size');
-  if (!data) return [];
-  try {
-    const parsed = JSON.parse(data);
-    const key = `${moldId}_${moldSize}`;
-    return parsed[key] || [];
-  } catch {
-    return [];
-  }
-};
-
-const toggleDefaultShelfForMoldSize = (moldId: string, moldSize: string, shelfId: string) => {
-  if (typeof window === 'undefined') return;
-  if (!moldId || !moldSize) return;
-  const data = localStorage.getItem('default_shelves_by_mold_size');
-  let parsed: Record<string, string[]> = {};
-  if (data) {
-    try { parsed = JSON.parse(data); } catch {}
-  }
-  const key = `${moldId}_${moldSize}`;
-  const current = parsed[key] || [];
-  if (current.includes(shelfId)) {
-    parsed[key] = current.filter(id => id !== shelfId);
-  } else {
-    parsed[key] = [...current, shelfId];
-  }
-  localStorage.setItem('default_shelves_by_mold_size', JSON.stringify(parsed));
-};
-
 export function ScanInOut() {
   const { t } = useLanguage();
   const [scanType, setScanType] = useState<'IN' | 'OUT'>('IN');
@@ -56,6 +23,51 @@ export function ScanInOut() {
   const [showAllShelvesForScanIn, setShowAllShelvesForScanIn] = useState(false);
   const [showAllShelvesForScanOut, setShowAllShelvesForScanOut] = useState(false);
   const [refreshDefaultTrigger, setRefreshDefaultTrigger] = useState(0);
+
+  const [dbDefaultShelves, setDbDefaultShelves] = useState<{mold_id: string, mold_size: string, shelf_id: string}[]>([]);
+
+  const fetchDbDefaultShelves = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('default_shelves')
+        .select('mold_id, mold_size, shelf_id');
+      if (error) throw error;
+      setDbDefaultShelves(data || []);
+    } catch (err) {
+      console.error('Error fetching db default shelves:', err);
+    }
+  };
+
+  const getDefaultShelvesForMoldSize = (moldId: string, moldSize: string): string[] => {
+    return dbDefaultShelves
+      .filter(d => d.mold_id === moldId && d.mold_size === moldSize)
+      .map(d => d.shelf_id);
+  };
+
+  const toggleDefaultShelfForMoldSize = async (moldId: string, moldSize: string, shelfId: string) => {
+    try {
+      const currentDefaults = getDefaultShelvesForMoldSize(moldId, moldSize);
+      if (currentDefaults.includes(shelfId)) {
+        // Delete
+        const { error } = await supabase
+          .from('default_shelves')
+          .delete()
+          .eq('mold_id', moldId)
+          .eq('mold_size', moldSize)
+          .eq('shelf_id', shelfId);
+        if (error) throw error;
+      } else {
+        // Insert
+        const { error } = await supabase
+          .from('default_shelves')
+          .insert({ mold_id: moldId, mold_size: moldSize, shelf_id: shelfId });
+        if (error) throw error;
+      }
+      await fetchDbDefaultShelves();
+    } catch (err) {
+      console.error('Failed to toggle default shelf:', err);
+    }
+  };
   
   const [moldSearchTerm, setMoldSearchTerm] = useState('');
   const [isSearchingMold, setIsSearchingMold] = useState(false);
@@ -180,6 +192,7 @@ export function ScanInOut() {
 
   useEffect(() => {
     fetchMeta();
+    fetchDbDefaultShelves();
     const savedRecents = localStorage.getItem('recent_molds');
     if (savedRecents) setRecentMolds(JSON.parse(savedRecents));
 
@@ -191,9 +204,18 @@ export function ScanInOut() {
       })
       .subscribe();
 
+    // Subscribe to default_shelves changes for real-time synchronization
+    const defaultsChannel = supabase
+      .channel('default_shelves_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'default_shelves' }, () => {
+        fetchDbDefaultShelves();
+      })
+      .subscribe();
+
     return () => {
       stopScanner();
       supabase.removeChannel(channel);
+      supabase.removeChannel(defaultsChannel);
     };
   }, []);
 
