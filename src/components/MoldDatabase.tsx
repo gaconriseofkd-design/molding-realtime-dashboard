@@ -19,11 +19,79 @@ export function MoldDatabase() {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
 
+  const [shelves, setShelves] = useState<{id: string, name: string}[]>([]);
+  const [activeAddDropdown, setActiveAddDropdown] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const fetchShelves = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('machines')
+        .select('id, name')
+        .like('id', 'SHELF-%')
+        .order('id');
+      if (error) throw error;
+      setShelves(data || []);
+    } catch (err) {
+      console.error('Error fetching shelves:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchShelves();
+    }
+  }, [isAuthenticated]);
+
+  const getDefaultShelvesForMold = (moldId: string): string[] => {
+    if (typeof window === 'undefined') return [];
+    const data = localStorage.getItem('default_shelves_by_mold');
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      return parsed[moldId] || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const addDefaultShelf = (moldId: string, shelfId: string) => {
+    if (typeof window === 'undefined') return;
+    const data = localStorage.getItem('default_shelves_by_mold');
+    let parsed: Record<string, string[]> = {};
+    if (data) {
+      try { parsed = JSON.parse(data); } catch {}
+    }
+    const current = parsed[moldId] || [];
+    if (!current.includes(shelfId)) {
+      parsed[moldId] = [...current, shelfId];
+      localStorage.setItem('default_shelves_by_mold', JSON.stringify(parsed));
+      setRefreshTrigger(prev => prev + 1);
+    }
+    setActiveAddDropdown(null);
+  };
+
+  const removeDefaultShelf = (moldId: string, shelfId: string) => {
+    if (typeof window === 'undefined') return;
+    const data = localStorage.getItem('default_shelves_by_mold');
+    let parsed: Record<string, string[]> = {};
+    if (data) {
+      try { parsed = JSON.parse(data); } catch {}
+    }
+    const current = parsed[moldId] || [];
+    if (current.includes(shelfId)) {
+      parsed[moldId] = current.filter(id => id !== shelfId);
+      localStorage.setItem('default_shelves_by_mold', JSON.stringify(parsed));
+      setRefreshTrigger(prev => prev + 1);
+    }
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === 'admin') {
       setIsAuthenticated(true);
       fetchMolds(searchTerm);
+      fetchShelves();
     } else {
       setPasswordError(true);
       setTimeout(() => setPasswordError(false), 2000);
@@ -452,19 +520,20 @@ export function MoldDatabase() {
                 <th className="px-6 py-4 text-center">{t('totalOwnedQty')}</th>
                 <th className="px-6 py-4 text-center">{t('currentlyRunningQty')}</th>
                 <th className="px-6 py-4">{t('status')}</th>
+                <th className="px-6 py-4">Kệ Mặc Định</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50 text-sm font-medium">
               {filteredMolds.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500 italic">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500 italic">
                     No data available or no match found. Add a mold manually or import from Excel.
                   </td>
                 </tr>
               )}
               {filteredMolds.map((mold, idx) => (
-                <tr key={`${mold.id}-${idx}`} className="hover:bg-slate-800/50 transition-colors group">
+                <tr key={`${mold.id}-${idx}-${refreshTrigger}`} className="hover:bg-slate-800/50 transition-colors group">
                   <td className="px-6 py-4 flex items-center gap-3">
                     <span className="w-2 h-2 rounded-full bg-slate-600 block"></span>
                     <span className="text-slate-200 font-bold">{mold.id}</span>
@@ -504,6 +573,71 @@ export function MoldDatabase() {
                         {mold.status}
                       </span>
                     )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {(() => {
+                      const moldDefaults = getDefaultShelvesForMold(mold.id);
+                      const availableShelvesForAdd = shelves.filter(s => !moldDefaults.includes(s.id));
+                      const rowKey = `${mold.id}_${mold.size}`;
+                      
+                      return (
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          {moldDefaults.map(shelfId => {
+                            const sObj = shelves.find(s => s.id === shelfId);
+                            const displayName = sObj ? sObj.name : shelfId;
+                            return (
+                              <div 
+                                key={shelfId}
+                                className="flex items-center gap-1 bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-xl text-xs font-bold shadow-sm"
+                              >
+                                <span>{displayName}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDefaultShelf(mold.id, shelfId)}
+                                  className="text-slate-400 hover:text-rose-400 transition-colors p-0.5 rounded-full hover:bg-slate-700/50 cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setActiveAddDropdown(activeAddDropdown === rowKey ? null : rowKey)}
+                              className="bg-slate-700/50 hover:bg-slate-600 text-slate-300 p-1.5 rounded-xl transition-colors border border-slate-600/50 flex items-center justify-center cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            
+                            {activeAddDropdown === rowKey && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setActiveAddDropdown(null)}></div>
+                                <div className="absolute left-0 mt-1 top-full z-50 bg-slate-900 border-2 border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto w-44 p-1.5 flex flex-col gap-1 scrollbar-hide">
+                                  {availableShelvesForAdd.length === 0 ? (
+                                    <div className="px-3 py-2 text-slate-500 text-xs italic text-center">
+                                      Tất cả kệ đã chọn
+                                    </div>
+                                  ) : (
+                                    availableShelvesForAdd.map(s => (
+                                      <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => addDefaultShelf(mold.id, s.id)}
+                                        className="w-full text-left px-2.5 py-1.5 text-xs text-slate-200 hover:bg-indigo-500/20 hover:text-indigo-300 font-bold rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        {s.name}
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
