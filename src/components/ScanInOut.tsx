@@ -99,7 +99,7 @@ export function ScanInOut() {
       if (navigator.vibrate) navigator.vibrate(80);
       isLongPressedRef.current = true;
       setShowDefaultMenuShelfId(shelfId);
-    }, 1500); // ~1.5s long press threshold
+    }, 700); // 700ms long press threshold (comfortable for mobile)
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -107,7 +107,7 @@ export function ScanInOut() {
     const dx = e.touches[0].clientX - touchStartPosRef.current.x;
     const dy = e.touches[0].clientY - touchStartPosRef.current.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 10) { // Cancel long press if they drag more than 10px
+    if (dist > 25) { // Cancel long press if they drag more than 25px (scrolling)
       endPress();
     }
   };
@@ -1417,6 +1417,7 @@ export function ScanInOut() {
                             onTouchStart={(e) => startPress(shelf.id, e)}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={endPress}
+                            onTouchCancel={endPress}
                             onMouseDown={(e) => startPress(shelf.id, e)}
                             onMouseUp={endPress}
                             onMouseLeave={endPress}
