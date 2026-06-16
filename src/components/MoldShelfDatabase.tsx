@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
-import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download, LogIn, LogOut } from 'lucide-react';
+import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download, LogIn, LogOut, ArrowRightLeft } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -67,6 +67,13 @@ export function MoldShelfDatabase() {
 
   // Shelf scan log timestamps (for last scan in/out per mold per shelf)
   const [shelfScanLogs, setShelfScanLogs] = useState<ShelfScanLog[]>([]);
+
+  // Transfer mold between shelves
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [transferMold, setTransferMold] = useState<MoldInShelf | null>(null);
+  const [transferTargetShelfId, setTransferTargetShelfId] = useState('');
+  const [transferQty, setTransferQty] = useState(1);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   // Autocomplete states
   const [moldMasterList, setMoldMasterList] = useState<{ id: string; size: string }[]>([]);
@@ -600,6 +607,87 @@ export function MoldShelfDatabase() {
         alert('Lỗi xóa khuôn khỏi kệ: ' + err.message);
       }
     });
+  };
+
+  // Transfer a mold (or partial quantity) from selectedShelf to another shelf
+  const handleTransferMold = async () => {
+    if (!selectedShelf || !transferMold || !transferTargetShelfId) return;
+    if (transferTargetShelfId === selectedShelf.id) {
+      alert('Kệ đích phải khác kệ nguồn!');
+      return;
+    }
+    if (transferQty <= 0 || transferQty > transferMold.quantity) {
+      alert(`Số lượng chuyển phải từ 1 đến ${transferMold.quantity}!`);
+      return;
+    }
+
+    setIsTransferring(true);
+    try {
+      // 1. Check if target shelf already has this mold
+      const { data: existingOnTarget, error: checkErr } = await supabase
+        .from('running_molds')
+        .select('uuid, quantity')
+        .eq('machine_id', transferTargetShelfId)
+        .eq('mold_id', transferMold.mold_id)
+        .eq('mold_size', transferMold.mold_size)
+        .maybeSingle();
+      if (checkErr) throw checkErr;
+
+      // 2. Update / remove source shelf
+      const remainingQty = transferMold.quantity - transferQty;
+      if (remainingQty <= 0) {
+        // Remove mold from source
+        if (transferMold.uuid) {
+          const { error } = await supabase.from('running_molds').delete().eq('uuid', transferMold.uuid);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('running_molds').delete()
+            .eq('machine_id', selectedShelf.id)
+            .eq('mold_id', transferMold.mold_id)
+            .eq('mold_size', transferMold.mold_size);
+          if (error) throw error;
+        }
+      } else {
+        // Reduce quantity on source
+        if (transferMold.uuid) {
+          const { error } = await supabase.from('running_molds').update({ quantity: remainingQty }).eq('uuid', transferMold.uuid);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('running_molds').update({ quantity: remainingQty })
+            .eq('machine_id', selectedShelf.id)
+            .eq('mold_id', transferMold.mold_id)
+            .eq('mold_size', transferMold.mold_size);
+          if (error) throw error;
+        }
+      }
+
+      // 3. Upsert mold into target shelf
+      if (existingOnTarget) {
+        const { error } = await supabase.from('running_molds')
+          .update({ quantity: existingOnTarget.quantity + transferQty })
+          .eq('uuid', existingOnTarget.uuid);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('running_molds').insert([{
+          machine_id: transferTargetShelfId,
+          mold_id: transferMold.mold_id,
+          mold_size: transferMold.mold_size,
+          quantity: transferQty,
+          scanned_in_at: new Date().toISOString()
+        }]);
+        if (error) throw error;
+      }
+
+      setIsTransferOpen(false);
+      setTransferMold(null);
+      setTransferTargetShelfId('');
+      setTransferQty(1);
+      await fetchData();
+    } catch (err: any) {
+      alert('Lỗi chuyển khuôn: ' + err.message);
+    } finally {
+      setIsTransferring(false);
+    }
   };
 
   // Manage manual stock edits
@@ -1161,6 +1249,12 @@ export function MoldShelfDatabase() {
                                 <span>Scan Out</span>
                               </div>
                             </th>
+                            <th className="px-4 py-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1 text-sky-400">
+                                <ArrowRightLeft className="w-3 h-3" />
+                                <span>Chuyển</span>
+                              </div>
+                            </th>
                             <th className="px-4 py-3.5 text-right">Xóa</th>
                           </tr>
                         </thead>
@@ -1232,6 +1326,20 @@ export function MoldShelfDatabase() {
                                     <span className="text-[10px] text-slate-600 italic">N/A</span>
                                   )}
                                 </td>
+                                <td className="px-4 py-3.5 text-center">
+                                  <button
+                                    onClick={() => handleRequiredAuth(() => {
+                                      setTransferMold(m);
+                                      setTransferQty(m.quantity);
+                                      setTransferTargetShelfId('');
+                                      setIsTransferOpen(true);
+                                    })}
+                                    className="p-1.5 text-slate-500 hover:text-sky-400 hover:bg-sky-500/10 rounded-lg transition-colors"
+                                    title="Chuyển khuôn sang kệ khác"
+                                  >
+                                    <ArrowRightLeft className="w-4 h-4" />
+                                  </button>
+                                </td>
                                 <td className="px-4 py-3.5 text-right">
                                   <button
                                     onClick={() => handleQuickDeleteMold(m)}
@@ -1290,6 +1398,127 @@ export function MoldShelfDatabase() {
                 )}
               </div>
 
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Transfer Mold Modal */}
+      <AnimatePresence>
+        {isTransferOpen && transferMold && selectedShelf && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setIsTransferOpen(false); }}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[55]"
+            />
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+              className="fixed inset-0 z-[56] flex items-center justify-center pointer-events-none p-4"
+            >
+              <div className="bg-slate-800 border border-slate-700 rounded-3xl shadow-2xl p-8 max-w-sm w-full pointer-events-auto">
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-sky-500/20 rounded-2xl flex items-center justify-center border border-sky-500/30 flex-shrink-0">
+                    <ArrowRightLeft className="w-6 h-6 text-sky-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Chuyển Khuôn</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Từ <span className="text-white font-semibold">{selectedShelf.name}</span></p>
+                  </div>
+                </div>
+
+                {/* Mold Info */}
+                <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-700/50 mb-5">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">Khuôn</span>
+                    <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">Tổng trên kệ này</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-white font-black text-base">{transferMold.mold_id}</p>
+                      <span className="inline-block mt-1 text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded font-mono">{transferMold.mold_size}</span>
+                    </div>
+                    <span className="text-2xl font-black text-white font-mono">{transferMold.quantity}</span>
+                  </div>
+                </div>
+
+                {/* Quantity Selector */}
+                <div className="mb-5">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Số lượng cần chuyển</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setTransferQty(q => Math.max(1, q - 1))}
+                      className="w-10 h-10 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-xl flex items-center justify-center font-bold text-white text-lg transition-colors"
+                    >−</button>
+                    <div className="flex-1 text-center">
+                      <span className="text-3xl font-black text-white font-mono">{transferQty}</span>
+                      <p className="text-[10px] text-slate-500 mt-0.5">/ {transferMold.quantity} cái</p>
+                    </div>
+                    <button
+                      onClick={() => setTransferQty(q => Math.min(transferMold.quantity, q + 1))}
+                      className="w-10 h-10 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-xl flex items-center justify-center font-bold text-white text-lg transition-colors"
+                    >+</button>
+                  </div>
+                  {/* Quick select all */}
+                  {transferQty < transferMold.quantity && (
+                    <button
+                      onClick={() => setTransferQty(transferMold.quantity)}
+                      className="mt-2 w-full text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                    >Chuyển tất cả ({transferMold.quantity} cái)</button>
+                  )}
+                </div>
+
+                {/* Target Shelf Selector */}
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Chuyển đến kệ</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                    {shelves
+                      .filter(s => s.id !== selectedShelf.id)
+                      .map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => setTransferTargetShelfId(s.id)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            transferTargetShelfId === s.id
+                              ? 'border-sky-500 bg-sky-500/15 ring-1 ring-sky-500/40'
+                              : 'border-slate-700 bg-slate-900/40 hover:border-slate-500 hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <p className="text-white font-bold text-xs truncate">{s.name}</p>
+                          <p className="text-slate-500 text-[10px] font-mono mt-0.5">{s.molds.reduce((sum, m) => sum + m.quantity, 0)} khuôn</p>
+                        </button>
+                      ))
+                    }
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsTransferOpen(false)}
+                    className="flex-1 py-3 rounded-xl font-bold bg-slate-700 text-white hover:bg-slate-600 transition-colors text-sm"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={handleTransferMold}
+                    disabled={isTransferring || !transferTargetShelfId}
+                    className="flex-1 py-3 rounded-xl font-bold bg-sky-500 text-white hover:bg-sky-400 active:scale-95 transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isTransferring
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <ArrowRightLeft className="w-4 h-4" />
+                    }
+                    {isTransferring ? 'Đang chuyển...' : 'Xác nhận chuyển'}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </>
         )}
