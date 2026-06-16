@@ -610,6 +610,9 @@ export function MoldShelfDatabase() {
   };
 
   // Transfer a mold (or partial quantity) from selectedShelf to another shelf
+  // SAFE ORDER: insert into target FIRST → remove from source SECOND
+  // If target insert fails → source is untouched (no data loss)
+  // If source removal fails → rollback target insert
   const handleTransferMold = async () => {
     if (!selectedShelf || !transferMold || !transferTargetShelfId) return;
     if (transferTargetShelfId === selectedShelf.id) {
@@ -623,7 +626,7 @@ export function MoldShelfDatabase() {
 
     setIsTransferring(true);
     try {
-      // 1. Check if target shelf already has this mold
+      // STEP 1: Check if target shelf already has this mold
       const { data: existingOnTarget, error: checkErr } = await supabase
         .from('running_molds')
         .select('uuid, quantity')
@@ -631,42 +634,14 @@ export function MoldShelfDatabase() {
         .eq('mold_id', transferMold.mold_id)
         .eq('mold_size', transferMold.mold_size)
         .maybeSingle();
-      if (checkErr) throw checkErr;
+      if (checkErr) throw new Error('Lỗi kiểm tra kệ đích: ' + checkErr.message);
 
-      // 2. Update / remove source shelf
-      const remainingQty = transferMold.quantity - transferQty;
-      if (remainingQty <= 0) {
-        // Remove mold from source
-        if (transferMold.uuid) {
-          const { error } = await supabase.from('running_molds').delete().eq('uuid', transferMold.uuid);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('running_molds').delete()
-            .eq('machine_id', selectedShelf.id)
-            .eq('mold_id', transferMold.mold_id)
-            .eq('mold_size', transferMold.mold_size);
-          if (error) throw error;
-        }
-      } else {
-        // Reduce quantity on source
-        if (transferMold.uuid) {
-          const { error } = await supabase.from('running_molds').update({ quantity: remainingQty }).eq('uuid', transferMold.uuid);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('running_molds').update({ quantity: remainingQty })
-            .eq('machine_id', selectedShelf.id)
-            .eq('mold_id', transferMold.mold_id)
-            .eq('mold_size', transferMold.mold_size);
-          if (error) throw error;
-        }
-      }
-
-      // 3. Upsert mold into target shelf
+      // STEP 2: INSERT INTO TARGET FIRST — source is still safe if this fails
       if (existingOnTarget) {
         const { error } = await supabase.from('running_molds')
           .update({ quantity: existingOnTarget.quantity + transferQty })
           .eq('uuid', existingOnTarget.uuid);
-        if (error) throw error;
+        if (error) throw new Error('Không thể cập nhật kệ đích: ' + error.message);
       } else {
         const { error } = await supabase.from('running_molds').insert([{
           machine_id: transferTargetShelfId,
@@ -675,7 +650,50 @@ export function MoldShelfDatabase() {
           quantity: transferQty,
           scanned_in_at: new Date().toISOString()
         }]);
-        if (error) throw error;
+        if (error) throw new Error('Không thể thêm vào kệ đích: ' + error.message);
+      }
+
+      // STEP 3: REMOVE/REDUCE FROM SOURCE — only after target insert succeeded
+      const remainingQty = transferMold.quantity - transferQty;
+      let sourceError: any = null;
+
+      if (remainingQty <= 0) {
+        if (transferMold.uuid) {
+          const { error } = await supabase.from('running_molds').delete().eq('uuid', transferMold.uuid);
+          sourceError = error;
+        } else {
+          const { error } = await supabase.from('running_molds').delete()
+            .eq('machine_id', selectedShelf.id)
+            .eq('mold_id', transferMold.mold_id)
+            .eq('mold_size', transferMold.mold_size);
+          sourceError = error;
+        }
+      } else {
+        if (transferMold.uuid) {
+          const { error } = await supabase.from('running_molds').update({ quantity: remainingQty }).eq('uuid', transferMold.uuid);
+          sourceError = error;
+        } else {
+          const { error } = await supabase.from('running_molds').update({ quantity: remainingQty })
+            .eq('machine_id', selectedShelf.id)
+            .eq('mold_id', transferMold.mold_id)
+            .eq('mold_size', transferMold.mold_size);
+          sourceError = error;
+        }
+      }
+
+      // ROLLBACK target if source removal failed (avoid double-counting)
+      if (sourceError) {
+        if (existingOnTarget) {
+          await supabase.from('running_molds')
+            .update({ quantity: existingOnTarget.quantity })
+            .eq('uuid', existingOnTarget.uuid);
+        } else {
+          await supabase.from('running_molds').delete()
+            .eq('machine_id', transferTargetShelfId)
+            .eq('mold_id', transferMold.mold_id)
+            .eq('mold_size', transferMold.mold_size);
+        }
+        throw new Error('Không thể cập nhật kệ nguồn (đã hoàn tác kệ đích): ' + sourceError.message);
       }
 
       setIsTransferOpen(false);
