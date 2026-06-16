@@ -1230,8 +1230,8 @@ export function MoldShelfDatabase() {
                   <div className="space-y-4">
                     <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Khuôn hiện có</h3>
                     
-                    <div className="bg-slate-900/40 rounded-2xl border border-slate-700/50 overflow-hidden">
-                      <table className="w-full text-left border-collapse">
+                    <div className="bg-slate-900/40 rounded-2xl border border-slate-700/50 overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-900 border-b border-slate-700 text-xs font-bold text-slate-500 uppercase tracking-widest">
                             <th className="px-4 py-3.5">Mã khuôn</th>
@@ -1261,7 +1261,7 @@ export function MoldShelfDatabase() {
                         <tbody className="divide-y divide-slate-850 text-sm">
                           {selectedShelf.molds.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="px-5 py-12 text-center text-slate-500 italic">
+                              <td colSpan={7} className="px-5 py-12 text-center text-slate-500 italic">
                                 Kệ trống. Hãy scan thêm khuôn hoặc nhấn Chỉnh sửa để cập nhật.
                               </td>
                             </tr>
