@@ -502,7 +502,8 @@ export function ScanInOut() {
         mold_size: item.mold_size,
         quantity: item.quantity,
         action_type: 'IN',
-        load_percentage: 0
+        load_percentage: 0,
+        scanned_by: getScannedBy()
       });
     }
   };
@@ -883,7 +884,8 @@ export function ScanInOut() {
             mold_size: selectedSize,
             quantity: scanQty,
             action_type: 'IN',
-            load_percentage: 0
+            load_percentage: 0,
+            scanned_by: getScannedBy()
           });
         }
 

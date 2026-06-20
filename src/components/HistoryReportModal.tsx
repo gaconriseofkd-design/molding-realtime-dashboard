@@ -144,7 +144,7 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
           'Size': log.mold_size,
           'Quantity': log.quantity,
           'Status (Action)': log.action_type === 'IN' ? 'SCAN IN' : 'SCAN OUT',
-          'Scanned By': log.action_type === 'OUT' ? (log.scanned_by || '-') : '-',
+          'Scanned By': log.scanned_by || '-',
           'Time': timeStr,
           'Ca Thường (Normal Shift)': calculateNormalShift(date),
           'Ca 24/7 (24/7 Shift)': calculate247Shift(date)
