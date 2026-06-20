@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle, RefreshCw, Search, Power } from 'lucide-react';
+import { Camera, Minus, Plus, Cpu, Package, Tag, Loader2, CheckCircle2, AlertCircle, StopCircle, RefreshCw, Search, Power, LogOut, UserCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useAuth } from '../contexts/AuthContext';
+import { ScanOutLoginModal } from './ScanOutLoginModal';
 
 export function ScanInOut() {
   const { t } = useLanguage();
+  const { currentUser, logout } = useAuth();
   const [scanType, setScanType] = useState<'IN' | 'OUT'>('IN');
   const [qty, setQty] = useState(1);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -504,6 +507,9 @@ export function ScanInOut() {
     }
   };
 
+  // Helper lấy username hiện tại cho scan_logs
+  const getScannedBy = () => currentUser?.username || null;
+
   const handleSubmit = async () => {
     if (!selectedMachineId) {
       setValidationError(t('scanMachineFirst'));
@@ -560,7 +566,8 @@ export function ScanInOut() {
               mold_size: r.mold_size,
               quantity: r.quantity,
               action_type: 'OUT',
-              load_percentage: currentLoadPercent
+              load_percentage: currentLoadPercent,
+              scanned_by: getScannedBy()
             }));
             await supabase.from('scan_logs').insert(logs);
         } else if (advancedScanMode === 'LIST') {
@@ -595,7 +602,8 @@ export function ScanInOut() {
               mold_size: r.mold_size,
               quantity: r.quantity,
               action_type: 'OUT',
-              load_percentage: currentLoadPercent
+              load_percentage: currentLoadPercent,
+              scanned_by: getScannedBy()
             }));
             await supabase.from('scan_logs').insert(logs);
         }
@@ -887,7 +895,8 @@ export function ScanInOut() {
           mold_size: selectedSize,
           quantity: scanQty,
           action_type: 'OUT',
-          load_percentage: loadPercent
+          load_percentage: loadPercent,
+          scanned_by: getScannedBy()
         });
       }
 
@@ -943,8 +952,14 @@ export function ScanInOut() {
     setSelectedScanOutItems(nextState);
   };
 
+  // Hiện login modal khi chuyển sang SCAN OUT và chưa đăng nhập
+  const showLoginModal = scanType === 'OUT' && !currentUser;
+
   return (
     <div className="max-w-md mx-auto h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-20 sm:pb-0">
+
+      {/* Login Modal for SCAN OUT */}
+      <ScanOutLoginModal isOpen={showLoginModal} />
 
       <div className="grid grid-cols-2 gap-4">
         <button
@@ -971,6 +986,29 @@ export function ScanInOut() {
           {t('scanOut')}
         </button>
       </div>
+
+      {/* User Badge — chỉ hiện khi đang ở SCAN OUT và đã đăng nhập */}
+      {scanType === 'OUT' && currentUser && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between bg-rose-500/10 border border-rose-500/30 rounded-2xl px-4 py-3"
+        >
+          <div className="flex items-center gap-2">
+            <UserCircle2 className="w-5 h-5 text-rose-400" />
+            <span className="text-sm font-black text-white">Đang đăng nhập:</span>
+            <span className="text-sm font-black text-rose-300 uppercase tracking-wider">{currentUser.username}</span>
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-rose-400 transition-colors"
+            title="Đăng xuất"
+          >
+            <LogOut className="w-4 h-4" />
+            Đăng xuất
+          </button>
+        </motion.div>
+      )}
       
       {/* Scanner Viewport */}
       <div className="relative w-full aspect-video sm:aspect-square bg-black rounded-3xl overflow-hidden border-4 border-slate-700/50 shadow-2xl flex items-center justify-center">

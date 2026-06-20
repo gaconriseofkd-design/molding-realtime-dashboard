@@ -144,6 +144,7 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
           'Size': log.mold_size,
           'Quantity': log.quantity,
           'Status (Action)': log.action_type === 'IN' ? 'SCAN IN' : 'SCAN OUT',
+          'Scanned By': log.action_type === 'OUT' ? (log.scanned_by || '-') : '-',
           'Time': timeStr,
           'Ca Thường (Normal Shift)': calculateNormalShift(date),
           'Ca 24/7 (24/7 Shift)': calculate247Shift(date)
@@ -155,7 +156,7 @@ export function HistoryReportModal({ isOpen, onClose }: HistoryReportModalProps)
       XLSX.utils.book_append_sheet(wb, ws, "Scan History");
       
       const colWidths = [
-        { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 25 }
+        { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 25 }
       ];
       ws['!cols'] = colWidths;
 
