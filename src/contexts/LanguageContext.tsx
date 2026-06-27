@@ -174,7 +174,19 @@ const translations: Translations = {
   noShelvesContainingMold: { en: 'No shelves contain the selected mold', vi: 'Không có kệ chứa khuôn đang chọn' },
   showAllShelves: { en: 'Show all shelves', vi: 'Hiển thị tất cả kệ' },
   showLessShelves: { en: 'Show filtered shelves only', vi: 'Thu gọn (Chỉ hiện kệ chứa khuôn)' },
+  scanOutDestinationTitle: { en: 'Scan Out Option', vi: 'Chức năng Scan Out' },
+  scanDownToShelf: { en: 'Scan to Shelf', vi: 'Scan xuống kệ' },
+  scanToAnotherMachine: { en: 'Scan to Another Machine', vi: 'Scan qua máy khác' },
+  selectTargetMachine: { en: 'Select Target Machine', vi: 'Chọn máy nhận khuôn' },
+  targetMachineSelectPlaceholder: { en: '-- Select Target Machine --', vi: '-- Chọn máy nhận --' },
+  targetMachineMolds: { en: 'Molds on target machine', vi: 'Số khuôn trên máy nhận' },
+  targetMachineRemainingCapacity: { en: 'Remaining capacity', vi: 'Công suất còn trống' },
+  errSameMachine: { en: 'Target machine must be different from current machine!', vi: 'Máy nhận phải khác với máy hiện tại!' },
+  errTransferQtyExceeded: { en: 'Transfer quantity exceeds running quantity on current machine!', vi: 'Số lượng chuyển đi không được lớn hơn lượng khuôn đang có trên máy hiện tại!' },
+  errTargetMachineInactive: { en: 'Target machine is not active!', vi: 'Máy nhận không ở trạng thái hoạt động!' },
+  errTargetCapacityExceeded: { en: 'Target machine capacity exceeded!', vi: 'Vượt quá công suất máy nhận!' },
 };
+
 
 interface LanguageContextType {
   language: Language;
