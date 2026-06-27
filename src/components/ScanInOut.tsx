@@ -577,10 +577,19 @@ export function ScanInOut() {
       return;
     }
 
-    // Bắt buộc chọn kệ khi Scan OUT
-    if (scanType === 'OUT' && !selectedShelfId) {
-      alert('⚠️ Vui lòng chọn Kệ khuôn trước khi Scan Out!\n\nKhuôn scan ra phải được trả về kệ để theo dõi vị trí lưu trữ.');
-      return;
+    // Bắt buộc chọn kệ hoặc máy nhận khi Scan OUT
+    if (scanType === 'OUT') {
+      if (isAdvancedScanOut || scanOutDestination === 'SHELF') {
+        if (!selectedShelfId) {
+          alert('⚠️ Vui lòng chọn Kệ khuôn trước khi Scan Out!\n\nKhuôn scan ra phải được trả về kệ để theo dõi vị trí lưu trữ.');
+          return;
+        }
+      } else if (scanOutDestination === 'MACHINE') {
+        if (!targetMachineId) {
+          alert('⚠️ Vui lòng chọn Máy nhận khuôn trước khi chuyển máy!');
+          return;
+        }
+      }
     }
 
     if (scanType === 'OUT' && isAdvancedScanOut) {
