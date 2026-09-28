@@ -3,6 +3,7 @@ import { MachineList } from './MachineList';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Search, Filter, ArrowUpDown, Loader2, X, Save, Plus, Minus, PlusCircle, LayoutGrid, Monitor, BarChart as BarChartIcon, StopCircle, Clock, FileText, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportToExcel } from '../utils/exportHelper';
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Machine, DashboardStats, Mold } from '../types';
@@ -115,12 +116,23 @@ export function LiveDashboard() {
       setIsLoading(true);
       
       // 1. Fetch all machines
-      const { data: machinesData, error: mError } = await supabase
-        .from('machines')
-        .select('*')
-        .order('id', { ascending: true });
+      let allMachinesData: any[] = [];
+      let mPage = 0;
+      const mPageSize = 1000;
+      while (true) {
+        const { data: mPageData, error: mError } = await supabase
+          .from('machines')
+          .select('*')
+          .order('id', { ascending: true })
+          .range(mPage * mPageSize, (mPage + 1) * mPageSize - 1);
 
-      if (mError) throw mError;
+        if (mError) throw mError;
+        if (!mPageData || mPageData.length === 0) break;
+        allMachinesData = [...allMachinesData, ...mPageData];
+        if (mPageData.length < mPageSize) break;
+        mPage++;
+      }
+      const machinesData = allMachinesData;
 
       // 2. Fetch all running molds
       let allRunningData: any[] = [];
@@ -337,7 +349,7 @@ export function LiveDashboard() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const exportData = machines.flatMap(machine => 
       machine.molds.map(mold => ({
         'Machine ID': machine.id,
@@ -364,7 +376,7 @@ export function LiveDashboard() {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Live Status");
-    XLSX.writeFile(wb, `Molding_Live_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await exportToExcel(wb, `Molding_Live_Status_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleAddMachine = async () => {
@@ -391,7 +403,11 @@ export function LiveDashboard() {
       await fetchData();
     } catch (error: any) {
       console.error(error);
-      alert(t('errAddMachine') + ': ' + (error.message || 'Unknown error'));
+      if (error.message?.includes('violates unique constraint "machines_pkey"')) {
+        alert('Lỗi: Mã máy này đã tồn tại trên hệ thống. Vui lòng nhập mã máy khác!');
+      } else {
+        alert(t('errAddMachine') + ': ' + (error.message || 'Unknown error'));
+      }
     } finally {
       setIsAddingMachine(false);
     }

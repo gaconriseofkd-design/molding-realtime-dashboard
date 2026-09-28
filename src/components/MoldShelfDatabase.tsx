@@ -3,6 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../utils/supabaseClient';
 import { Archive, Plus, X, Search, Lock, Trash2, Loader2, Edit3, Download, LogIn, LogOut, ArrowRightLeft } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportToExcel } from '../utils/exportHelper';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface MoldInShelf {
@@ -113,11 +114,23 @@ export function MoldShelfDatabase() {
     try {
       setIsLoading(true);
       // Fetch machines (shelves)
-      const { data: machinesData, error: mErr } = await supabase
-        .from('machines')
-        .select('*')
-        .order('id', { ascending: true });
-      if (mErr) throw mErr;
+      let allMachinesData: any[] = [];
+      let mPage = 0;
+      const mPageSize = 1000;
+      while (true) {
+        const { data: mPageData, error: mErr } = await supabase
+          .from('machines')
+          .select('*')
+          .order('id', { ascending: true })
+          .range(mPage * mPageSize, (mPage + 1) * mPageSize - 1);
+        
+        if (mErr) throw mErr;
+        if (!mPageData || mPageData.length === 0) break;
+        allMachinesData = [...allMachinesData, ...mPageData];
+        if (mPageData.length < mPageSize) break;
+        mPage++;
+      }
+      const machinesData = allMachinesData;
 
       // Filter to only shelves (IDs starting with SHELF-)
       const shelfMachines = (machinesData || []).filter(m => m.id.startsWith('SHELF-'));
@@ -343,7 +356,7 @@ export function MoldShelfDatabase() {
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Lich_Su_Di_Chuyen_Khuon');
-      XLSX.writeFile(wb, `Lich_Su_Di_Chuyen_Khuon_${new Date().toISOString().split('T')[0]}.xlsx`);
+      await exportToExcel(wb, `Lich_Su_Di_Chuyen_Khuon_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err: any) {
       console.error(err);
       alert('Lỗi xuất báo cáo lịch sử di chuyển: ' + err.message);
@@ -352,7 +365,7 @@ export function MoldShelfDatabase() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     try {
       const exportData = shelves.flatMap(shelf => {
         if (shelf.molds.length === 0) {
@@ -380,7 +393,7 @@ export function MoldShelfDatabase() {
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Du_Lieu_Ke_Khuon');
-      XLSX.writeFile(wb, `Du_Lieu_Ke_Khuon_${new Date().toISOString().split('T')[0]}.xlsx`);
+      await exportToExcel(wb, `Du_Lieu_Ke_Khuon_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err: any) {
       alert('Lỗi xuất Excel: ' + err.message);
     }
@@ -457,7 +470,11 @@ export function MoldShelfDatabase() {
       setEditingShelfId(null);
       await fetchData();
     } catch (error: any) {
-      alert('Lỗi lưu kệ: ' + error.message);
+      if (error.message?.includes('violates unique constraint "machines_pkey"')) {
+        alert('Lỗi: Mã kệ này đã tồn tại trên hệ thống. Vui lòng nhập mã kệ khác!');
+      } else {
+        alert('Lỗi lưu kệ: ' + error.message);
+      }
     } finally {
       setIsAddingShelf(false);
     }
